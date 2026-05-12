@@ -2681,6 +2681,25 @@ function showAuthOverlay(){
 function hideAuthOverlay(){
   const o=document.getElementById('authOverlay'); if(o)o.style.display='none'
 }
+// Show a "Loading your data…" state on the overlay so the app never
+// opens with empty data. Mirrors the love site pattern: entry screen
+// stays visible while data loads in the background.
+function showAuthLoading(){
+  const overlay=document.getElementById('authOverlay')
+  if(!overlay)return
+  overlay.style.display='flex'
+  // Swap inner content to a loading card
+  const inner=overlay.querySelector('.auth-card')||overlay.firstElementChild
+  if(inner){
+    inner.innerHTML=`
+      <div style="text-align:center;padding:2rem 1.5rem">
+        <div style="font-size:2.5rem;margin-bottom:1rem;animation:spin 1.2s linear infinite;display:inline-block">🐾</div>
+        <div style="font-family:var(--font-display,serif);font-size:1.4rem;color:var(--text-main,#1a0a2e);margin-bottom:0.5rem">Loading your data…</div>
+        <div style="font-size:0.8rem;color:#888;letter-spacing:0.08em">Just a moment ✨</div>
+      </div>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>`
+  }
+}
 function hideAuthOverlayLocalMode(){
   hideAuthOverlay()
   // Run as local-only mode
@@ -2710,7 +2729,9 @@ async function doSignIn(){
   const {data,error}=await _sb.auth.signInWithPassword({email,password:pass})
   btn.textContent='Sign In →';btn.disabled=false
   if(error){if(errEl){errEl.textContent=error.message;errEl.style.display='block'};return}
-  // Auth state change handler will fire and call afterSignIn
+  // Show loading state right away — onAuthStateChange (SIGNED_IN) will
+  // call afterSignIn() then hideAuthOverlay() once data is loaded
+  showAuthLoading()
 }
 async function doSignUp(){
   const name=document.getElementById('authName')?.value.trim()
@@ -2744,8 +2765,12 @@ async function _startAuth(){
       AU_SB_ID=session.user.id
       USERS.u1.name=session.user.user_metadata?.display_name||'You'
       USERS.u1.email=session.user.email||''
-      hideAuthOverlay()
+      // Show loading state (keep overlay visible while data loads)
+      // This is the love-site pattern: entry screen stays up until data is ready
+      showAuthLoading()
       if(isNewLogin) await afterSignIn()
+      // NOW hide the overlay — app opens with data already populated
+      hideAuthOverlay()
     } else if(event==='SIGNED_OUT'||(event==='INITIAL_SESSION'&&!session)){
       AU_SB_ID=null; AU_PARTNER_ID=null
       resetLocalData()
@@ -2762,8 +2787,9 @@ async function _startAuth(){
       AU_SB_ID=session.user.id
       USERS.u1.name=session.user.user_metadata?.display_name||'You'
       USERS.u1.email=session.user.email||''
-      hideAuthOverlay()
+      showAuthLoading()
       await afterSignIn()
+      hideAuthOverlay()
     } else if(!session&&!AU_SB_ID){
       showAuthOverlay()
     }
@@ -2854,8 +2880,8 @@ async function loadAllDataFromSB(){
 // ═══════════════════════════════════════════════════════════
 //  🔌 SUPABASE CONFIGURATION — REPLACE THESE TWO VALUES
 // ═══════════════════════════════════════════════════════════
-const SUPABASE_URL  = 'https://rppclxfovbegmgtdoeno.supabase.co'
-const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwcGNseGZvdmJlZ21ndGRvZW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1NDE4MjcsImV4cCI6MjA5NDExNzgyN30.Xa8JGyOyjUaiSMhXilhU76Rqae9Ecv6I6aTnBeXnk5Y'
+const SUPABASE_URL  = 'https://hgtuojismafjuhzzpopb.supabase.co'
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhndHVvamlzbWFmanVoenpwb3BiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1OTc4OTMsImV4cCI6MjA5NDE3Mzg5M30.Y-Yi8AGAn_kWzFeIgsoufwNih1Pyc_H4mZGeH8E8uAI'
 
 let _sb = null
 let SB_READY = false
