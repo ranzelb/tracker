@@ -2224,6 +2224,7 @@ async function uploadAvatar(ev){
     const compressed=await compressImage(file)
     // Show preview immediately
     USERS[AU].photo=compressed
+    try{ localStorage.setItem('pairly_photo_'+AU, compressed) }catch(e){}
     updateSBAv(); renderProfile()
     // Save compressed base64 directly into profiles.avatar_url (small enough for a text column)
     if(SB_READY&&AU_SB_ID){
@@ -2653,6 +2654,11 @@ function showErr(id,msg){const el=document.getElementById(id);if(el){el.textCont
 
 // ─── INIT ─────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded',()=>{
+  // Pre-load cached photos instantly before Supabase responds
+  try{
+    const p1=localStorage.getItem('pairly_photo_u1'); if(p1) USERS.u1.photo=p1
+    const p2=localStorage.getItem('pairly_photo_u2'); if(p2) USERS.u2.photo=p2
+  }catch(e){}
   document.getElementById('staticDate').textContent=new Date().toLocaleDateString('en-PH',{weekday:'short',month:'long',day:'numeric',year:'numeric'})
   document.getElementById('ttTrack').classList.toggle('on',!DARK)
   document.querySelectorAll('input[type=date]').forEach(i=>{if(!i.value)i.value=tod()})
@@ -2671,10 +2677,16 @@ window.addEventListener('DOMContentLoaded',()=>{
 })
 
 // ─── AUTH FLOW ──────────────────────────────────────────────
+let _authCardHTML = null  // Stores the original login form HTML
 function showAuthOverlay(){
   const o=document.getElementById('authOverlay'); if(!o)return
+  // Restore the original login form if showAuthLoading() replaced it
+  const inner=o.querySelector('.auth-card')||o.firstElementChild
+  if(inner){
+    if(!_authCardHTML) _authCardHTML=inner.innerHTML  // Save on first call
+    else inner.innerHTML=_authCardHTML                 // Restore on subsequent calls
+  }
   o.style.display='flex'
-  // Show local-mode note if Supabase not configured
   const note=document.getElementById('authLocalNote')
   if(note)note.style.display=SB_READY?'none':'block'
 }
@@ -2763,7 +2775,7 @@ async function afterSignInSafe(){
   try{
     await Promise.race([
       afterSignIn(),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('load_timeout')),10000))
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('load_timeout')),5000))
     ])
   }catch(err){
     if(err.message==='load_timeout'){
@@ -2823,7 +2835,13 @@ async function afterSignIn(){
     // ✅ FIX: set the REAL invite code from Supabase (not the hardcoded one)
     USERS.u1.inviteCode = profile.invite_code || 'Loading…'
     // Load photo if saved
-    if(profile.avatar_url){ USERS.u1.photo = profile.avatar_url }
+    if(profile.avatar_url){
+      USERS.u1.photo = profile.avatar_url
+      try{ localStorage.setItem('pairly_photo_u1', profile.avatar_url) }catch(e){}
+    } else {
+      // Fallback: use locally cached photo if Supabase didn't return one
+      try{ const lp=localStorage.getItem('pairly_photo_u1'); if(lp) USERS.u1.photo=lp }catch(e){}
+    }
     AU_PARTNER_ID = profile.partner_id || null
     if(AU_PARTNER_ID){
       const pp=await sbRace(sbLoadProfile(AU_PARTNER_ID))
@@ -2832,7 +2850,12 @@ async function afterSignIn(){
         USERS.u2.avatar = pp.avatar_emoji  || '🐈'
         USERS.u2.id     = AU_PARTNER_ID
         USERS.u2.inviteCode = pp.invite_code || ''
-        if(pp.avatar_url) USERS.u2.photo = pp.avatar_url
+        if(pp.avatar_url){
+          USERS.u2.photo = pp.avatar_url
+          try{ localStorage.setItem('pairly_photo_u2', pp.avatar_url) }catch(e){}
+        } else {
+          try{ const lp=localStorage.getItem('pairly_photo_u2'); if(lp) USERS.u2.photo=lp }catch(e){}
+        }
       }
     }
   }
@@ -2847,7 +2870,7 @@ function resetLocalData(){
 }
 
 // Race any single Supabase call against a 6s timeout
-async function sbRace(promise){ return Promise.race([promise, new Promise(r=>setTimeout(()=>r(null),6000))]) }
+async function sbRace(promise){ return Promise.race([promise, new Promise(r=>setTimeout(()=>r(null),2000))]) }
 
 async function loadAllDataFromSB(){
   if(!SB_READY||!AU_SB_ID)return
