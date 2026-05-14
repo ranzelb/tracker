@@ -2272,11 +2272,11 @@ async function linkPartner(e){
       return
     }
     // Reload profile to get the new partner_id
-    const profile=await sbRace(sbLoadProfile(AU_SB_ID))
+    const profile=await sbLoadProfile(AU_SB_ID)
     if(profile?.partner_id){
       AU_PARTNER_ID=profile.partner_id
       USERS.u1.inviteCode=profile.invite_code||USERS.u1.inviteCode
-      const pp=await sbRace(sbLoadProfile(AU_PARTNER_ID))
+      const pp=await sbLoadProfile(AU_PARTNER_ID)
       if(pp){
         USERS.u2.name=pp.display_name||'Partner'
         USERS.u2.avatar=pp.avatar_emoji||'🐈'
@@ -2678,37 +2678,41 @@ window.addEventListener('DOMContentLoaded',()=>{
 
 // ─── AUTH FLOW ──────────────────────────────────────────────
 function showAuthOverlay(){
-  const o=document.getElementById('authOverlay'); if(!o)return
-  o.style.display='flex'
-  // Hide the loader, restore the auth card
+  // Hide the loading screen first
   const loader=document.getElementById('_pairlyLoader')
   if(loader) loader.style.display='none'
+  // Show the sign-in form
+  const o=document.getElementById('authOverlay'); if(!o)return
   const card=o.querySelector('.auth-card')
   if(card) card.style.display=''
+  o.style.display='flex'
   const note=document.getElementById('authLocalNote')
   if(note)note.style.display=SB_READY?'none':'block'
 }
 function hideAuthOverlay(){
   const o=document.getElementById('authOverlay'); if(o)o.style.display='none'
+  const loader=document.getElementById('_pairlyLoader')
+  if(loader) loader.style.display='none'
 }
-// Show a loading state WITHOUT touching the auth card HTML.
-// Uses a separate div that floats over the card — fully reversible.
-function showAuthLoading(){
-  const overlay=document.getElementById('authOverlay')
-  if(!overlay)return
-  overlay.style.display='flex'
-  // Hide the auth card (don't modify its HTML)
-  const card=overlay.querySelector('.auth-card')
-  if(card) card.style.display='none'
-  // Show or create the loading layer
-  let loader=document.getElementById('_pairlyLoader')
-  if(!loader){
-    loader=document.createElement('div')
-    loader.id='_pairlyLoader'
-    loader.style.cssText='display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem 2rem;text-align:center;gap:0.75rem'
-    loader.innerHTML='<div style="font-size:3rem;animation:_spin 1s linear infinite;display:inline-block">🐾</div><div style="font-size:1.3rem;font-weight:600;color:var(--text-main,#1a0a2e)">Loading your data…</div><div style="font-size:0.8rem;color:#999;letter-spacing:0.08em">Just a moment ✨</div><style>@keyframes _spin{to{transform:rotate(360deg)}}</style>'
-    overlay.appendChild(loader)
+// Show a full-screen loading overlay that is COMPLETELY SEPARATE
+// from #authOverlay — they can never appear at the same time.
+function _getLoader(){
+  let el=document.getElementById('_pairlyLoader')
+  if(!el){
+    el=document.createElement('div')
+    el.id='_pairlyLoader'
+    el.style.cssText='position:fixed;inset:0;z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;text-align:center;background:var(--bg1,#f9f0f5)'
+    el.innerHTML='<div style="font-size:3.5rem;animation:_spin 1s linear infinite;display:inline-block">🐾</div><div style="font-size:1.4rem;font-weight:600;color:var(--text-main,#1a0a2e)">Loading your data…</div><div style="font-size:0.85rem;color:#999;letter-spacing:0.08em">Just a moment ✨</div><style>@keyframes _spin{to{transform:rotate(360deg)}}</style>'
+    document.body.appendChild(el)
   }
+  return el
+}
+function showAuthLoading(){
+  // Hide the sign-in form completely
+  const overlay=document.getElementById('authOverlay')
+  if(overlay) overlay.style.display='none'
+  // Show the standalone loading screen
+  const loader=_getLoader()
   loader.style.display='flex'
 }
 function hideAuthOverlayLocalMode(){
@@ -2774,7 +2778,7 @@ async function afterSignInSafe(){
   try{
     await Promise.race([
       afterSignIn(),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('load_timeout')),5000))
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('load_timeout')),8000))
     ])
   }catch(err){
     if(err.message==='load_timeout'){
@@ -2827,7 +2831,7 @@ async function _startAuth(){
 
 async function afterSignIn(){
   // NOTE: updateSBAv() is called AFTER profile loads so the photo is set first
-  const profile=await sbRace(sbLoadProfile(AU_SB_ID))
+  const profile=await sbLoadProfile(AU_SB_ID)
   if(profile){
     USERS.u1.name    = profile.display_name  || 'You'
     USERS.u1.avatar  = profile.avatar_emoji  || '🐱'
@@ -2841,7 +2845,7 @@ async function afterSignIn(){
     }
     AU_PARTNER_ID = profile.partner_id || null
     if(AU_PARTNER_ID){
-      const pp=await sbRace(sbLoadProfile(AU_PARTNER_ID))
+      const pp=await sbLoadProfile(AU_PARTNER_ID)
       if(pp){
         USERS.u2.name   = pp.display_name  || 'Partner'
         USERS.u2.avatar = pp.avatar_emoji  || '🐈'
@@ -2872,25 +2876,26 @@ async function sbRace(promise){ return Promise.race([promise, new Promise(r=>set
 async function loadAllDataFromSB(){
   if(!SB_READY||!AU_SB_ID)return
   try{
-    // ── Run ALL fetches in parallel so total time = slowest single call ──
+    // ── Run ALL fetches in parallel (no per-call timeout — sbLoad*
+    //    already returns [] on error; master timeout in afterSignInSafe) ──
     const [
       budgets, expenses, insts, goals, todos, wl, sched, userCats,
       pb, pe, pi, pt, pw, ps
     ] = await Promise.all([
-      sbRace(sbLoadBudgets(AU_SB_ID)),
-      sbRace(sbLoadExpenses(AU_SB_ID)),
-      sbRace(sbLoadInstallments(AU_SB_ID)),
-      sbRace(sbLoadGoals(AU_SB_ID)),
-      sbRace(sbLoadTodos(AU_SB_ID)),
-      sbRace(sbLoadWishlist(AU_SB_ID)),
-      sbRace(sbLoadSchedule(AU_SB_ID)),
-      sbRace(sbLoadCategories(AU_SB_ID)),
-      AU_PARTNER_ID ? sbRace(sbLoadBudgets(AU_PARTNER_ID))      : Promise.resolve([]),
-      AU_PARTNER_ID ? sbRace(sbLoadExpenses(AU_PARTNER_ID))     : Promise.resolve([]),
-      AU_PARTNER_ID ? sbRace(sbLoadInstallments(AU_PARTNER_ID)) : Promise.resolve([]),
-      AU_PARTNER_ID ? sbRace(sbLoadTodos(AU_PARTNER_ID))        : Promise.resolve([]),
-      AU_PARTNER_ID ? sbRace(sbLoadWishlist(AU_PARTNER_ID))     : Promise.resolve([]),
-      AU_PARTNER_ID ? sbRace(sbLoadSchedule(AU_PARTNER_ID))     : Promise.resolve([]),
+      sbLoadBudgets(AU_SB_ID),
+      sbLoadExpenses(AU_SB_ID),
+      sbLoadInstallments(AU_SB_ID),
+      sbLoadGoals(AU_SB_ID),
+      sbLoadTodos(AU_SB_ID),
+      sbLoadWishlist(AU_SB_ID),
+      sbLoadSchedule(AU_SB_ID),
+      sbLoadCategories(AU_SB_ID),
+      AU_PARTNER_ID ? sbLoadBudgets(AU_PARTNER_ID)      : Promise.resolve([]),
+      AU_PARTNER_ID ? sbLoadExpenses(AU_PARTNER_ID)     : Promise.resolve([]),
+      AU_PARTNER_ID ? sbLoadInstallments(AU_PARTNER_ID) : Promise.resolve([]),
+      AU_PARTNER_ID ? sbLoadTodos(AU_PARTNER_ID)        : Promise.resolve([]),
+      AU_PARTNER_ID ? sbLoadWishlist(AU_PARTNER_ID)     : Promise.resolve([]),
+      AU_PARTNER_ID ? sbLoadSchedule(AU_PARTNER_ID)     : Promise.resolve([]),
     ])
     // Map results
     S.budgets.u1=(budgets||[]).map(b=>({id:b.id,uid:'u1',title:b.title,type:b.budget_type||'📋 General',amt:parseFloat(b.amount)||0,spent:parseFloat(b.total_spent)||0,start:b.start_date,days:b.duration_days||30,end:b.end_date,status:b.status,xfer:parseFloat(b.transferred)||0,notes:b.notes||''}))
