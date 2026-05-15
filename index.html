@@ -1008,6 +1008,7 @@ tbody tr:hover td{background:var(--bg3)}
 <!-- New Budget -->
 <div class="overlay" id="m-newBudget" style="display:none" onclick="obg(event,'m-newBudget')">
   <div class="modal"><div class="mtitle">🐱 New Budget Cycle</div>
+    <input type="hidden" id="nb-eid"/>
     <div class="fg"><label>Budget Title</label><input id="nb-title" placeholder="e.g. Food, Bills, Needs"/></div>
     <div class="fg"><label>Amount (₱)</label><input id="nb-amt" type="number" min="1" step="0.01" placeholder="5000"/></div>
     <div class="frow">
@@ -1019,7 +1020,7 @@ tbody tr:hover td{background:var(--bg3)}
     </div>
     <div class="fg"><label>Notes</label><input id="nb-notes" placeholder="Optional notes"/></div>
     <div class="err" id="nb-err"></div>
-    <div class="mfoot"><button class="btn" onclick="cm('m-newBudget')">Cancel</button><button class="btn btn-p" onclick="createBudget(event)">Create</button></div>
+    <div class="mfoot"><button class="btn" onclick="cm('m-newBudget')">Cancel</button><button class="btn btn-p" id="nb-save-btn" onclick="saveBudgetModal(event)">Create</button></div>
   </div>
 </div>
 
@@ -1605,7 +1606,7 @@ function renderBContent(scope,bid,isOwn){
       <div class="cd-txt"><strong>days remaining</strong><br><span style="font-size:11px">${fmtD(b.start)} → ${fmtD(b.end)} · Daily avg: ${P(dailyAvg)}/day · Projected: ${P(proj)}</span></div>
     </div>
     <div class="card card-sm" style="margin-bottom:14px">
-      <div class="chd" style="margin-bottom:10px"><span class="ctitle">${b.type} ${esc(b.title)}</span><div style="display:flex;gap:6px;align-items:center"><span class="badge ${bp>85?'bd':'ba'}">${bp}% used</span>${isOwn?`<button class="btn btn-xs btn-d" onclick="delConfirm('🗑️ Delete Budget','Delete &ldquo;${esc(b.title)}&rdquo; and all its expenses? This cannot be undone.',()=>delBudget('${scope}','${bid}'))">🗑️ Delete</button>`:''}</div></div>
+      <div class="chd" style="margin-bottom:10px"><span class="ctitle">${b.type} ${esc(b.title)}</span><div style="display:flex;gap:6px;align-items:center"><span class="badge ${bp>85?'bd':'ba'}">${bp}% used</span>${isOwn?`<button class="btn btn-xs btn-o" onclick="openEditBudget('${scope}','${bid}')">✏️ Edit</button><button class="btn btn-xs btn-d" onclick="delConfirm('🗑️ Delete Budget','Delete &ldquo;${esc(b.title)}&rdquo; and all its expenses? This cannot be undone.',()=>delBudget('${scope}','${bid}'))">🗑️ Delete</button>`:''}</div></div>
       <div class="pw" style="height:12px"><div class="pf ${bp>85?'pfd':'pfp'}" style="width:${bp}%"></div></div>
       <div class="pmeta"><span>${P(b.spent)} spent</span><span>${P(rem)} left</span></div>
     </div>
@@ -2305,6 +2306,8 @@ function openModal(id,ctx){
   const titleMap={'m-addWish':'🛍️ Add to Wishlist','m-addSched':'📅 Add Class / Event','m-addTodo':'✅ New Task','m-addCat':'🏷️ New Category','m-newGoal':'🎯 New Savings Goal','m-addSav':'🏦 Add to Savings','m-newBudget':'🐱 New Budget Cycle'}
   const titleEl=document.querySelector(`#${id} .mtitle`)
   if(titleEl&&titleMap[id])titleEl.textContent=titleMap[id]
+  // Reset save button text for budget modal
+  if(id==='m-newBudget'){const sb=document.getElementById('nb-save-btn');if(sb)sb.textContent='Create'}
   document.getElementById(id).style.display='flex'
 }
 function cm(id){document.getElementById(id).style.display='none'}
@@ -2318,7 +2321,14 @@ function delConfirm(title,body,fn){
   document.getElementById('m-del').style.display='flex'
 }
 
-// ─── CREATE BUDGET ────────────────────────────────────────
+// ─── SAVE BUDGET (create OR edit) ─────────────────────────
+async function saveBudgetModal(e){
+  CP(e)
+  const eid=document.getElementById('nb-eid')?.value
+  if(eid) { await updateBudget(e,eid); return }
+  await createBudget(e)
+}
+
 async function createBudget(e){
   CP(e)
   const scope=S._ctx||'mine',uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
@@ -2334,6 +2344,44 @@ async function createBudget(e){
   if(!S.budgets[uid2])S.budgets[uid2]=[]
   S.budgets[uid2].push(localObj)
   cm('m-newBudget');buildRepOptions();toast(`"${title}" budget created! 🐱`);renderPage(CUR)
+}
+
+async function updateBudget(e,bid){
+  CP(e)
+  const b=getBudget(bid); if(!b){showErr('nb-err','Budget not found');return}
+  const title=document.getElementById('nb-title').value.trim()
+  const days=parseInt(document.getElementById('nb-days').value)
+  const type=document.getElementById('nb-type').value
+  const notes=document.getElementById('nb-notes').value
+  if(!title||!days){showErr('nb-err','Title and duration are required');return}
+  // Update local state
+  b.title=title; b.days=days; b.type=type; b.notes=notes
+  b.end=addD(b.start,days-1)
+  // Update Supabase
+  if(SB_READY&&AU_SB_ID){
+    const {error}=await _sb.from('budgets').update({
+      title,duration_days:days,end_date:b.end,budget_type:type,notes
+    }).eq('id',bid)
+    if(error){showErr('nb-err','Failed to save changes');return}
+  }
+  cm('m-newBudget');buildRepOptions();toast(`"${title}" budget updated! ✏️`);renderPage(CUR)
+}
+
+// Open the budget modal in edit mode
+function openEditBudget(scope,bid){
+  const b=getBudget(bid); if(!b)return
+  S._ctx=scope
+  document.getElementById('nb-eid').value=bid
+  document.getElementById('nb-title').value=b.title
+  document.getElementById('nb-amt').value=b.amt
+  document.getElementById('nb-start').value=b.start
+  document.getElementById('nb-days').value=b.days
+  document.getElementById('nb-type').value=b.type
+  document.getElementById('nb-notes').value=b.notes||''
+  document.querySelector('#m-newBudget .mtitle').textContent='✏️ Edit Budget'
+  document.getElementById('nb-save-btn').textContent='Save Changes'
+  document.querySelectorAll('#m-newBudget .err').forEach(el=>el.style.display='none')
+  document.getElementById('m-newBudget').style.display='flex'
 }
 
 async function delBudget(scope,bid){
@@ -2759,9 +2807,15 @@ async function doSignIn(){
   const {data,error}=await _sb.auth.signInWithPassword({email,password:pass})
   btn.textContent='Sign In →';btn.disabled=false
   if(error){if(errEl){errEl.textContent=error.message;errEl.style.display='block'};return}
-  // Show loading state right away — onAuthStateChange (SIGNED_IN) will
-  // call afterSignIn() then hideAuthOverlay() once data is loaded
+  // Set AU_SB_ID IMMEDIATELY so visibilitychange can detect if the
+  // browser throttles us while loading (user switches to another tab)
+  AU_SB_ID=data.user.id
+  USERS.u1.name=data.user.user_metadata?.display_name||'You'
+  USERS.u1.email=data.user.email||''
   showAuthLoading()
+  // Handle full load directly here instead of waiting for onAuthStateChange
+  await afterSignInSafe()
+  hideAuthOverlay()
 }
 async function doSignUp(){
   const name=document.getElementById('authName')?.value.trim()
