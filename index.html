@@ -2272,11 +2272,11 @@ async function linkPartner(e){
       return
     }
     // Reload profile to get the new partner_id
-    const profile=await sbLoadProfile(AU_SB_ID)
+    const profile=await sbCall(sbLoadProfile(AU_SB_ID))||null
     if(profile?.partner_id){
       AU_PARTNER_ID=profile.partner_id
       USERS.u1.inviteCode=profile.invite_code||USERS.u1.inviteCode
-      const pp=await sbLoadProfile(AU_PARTNER_ID)
+      const pp=await sbCall(sbLoadProfile(AU_PARTNER_ID))||null
       if(pp){
         USERS.u2.name=pp.display_name||'Partner'
         USERS.u2.avatar=pp.avatar_emoji||'🐈'
@@ -2653,6 +2653,21 @@ function toast(msg,icon='✅'){const el=document.createElement('div');el.classNa
 function showErr(id,msg){const el=document.getElementById(id);if(el){el.textContent=msg;el.style.display='block'}}
 
 // ─── INIT ─────────────────────────────────────────────────
+// ── Visibility listener: if the browser throttled us while in the
+// background and loading didn't finish, complete it when the user
+// comes back to the tab. This is the main fix for "need to switch
+// tabs to make the site load" — a known browser throttling behaviour.
+document.addEventListener('visibilitychange',async()=>{
+  if(document.visibilityState!=='visible'||!AU_SB_ID)return
+  const loader=document.getElementById('_pairlyLoader')
+  const loaderVisible=loader&&loader.style.display==='flex'
+  if(loaderVisible){
+    // Was still loading in background — finish now that tab is active
+    await loadAllDataFromSB()
+    hideAuthOverlay()
+  }
+})
+
 window.addEventListener('DOMContentLoaded',()=>{
   // Pre-load cached photos instantly before Supabase responds
   try{
@@ -2870,32 +2885,39 @@ function resetLocalData(){
   S.instPays=[]; S.goals=[]; S.todos=[]; S.wishlist={u1:[],u2:[]}; S.schedule={u1:[],u2:[]}
 }
 
-// Race any single Supabase call against a 6s timeout
-async function sbRace(promise){ return Promise.race([promise, new Promise(r=>setTimeout(()=>r(null),2000))]) }
+// Wraps a Supabase call so it always resolves (never rejects):
+// returns the data, or [] if it errors or takes longer than 5 seconds.
+// 5 seconds is generous for a single query; the parallel Promise.all
+// means total load time ≈ slowest single call, not the sum.
+function sbCall(promise){
+  return Promise.race([
+    promise.catch(()=>[]),
+    new Promise(r=>setTimeout(()=>r([]),5000))
+  ])
+}
 
 async function loadAllDataFromSB(){
   if(!SB_READY||!AU_SB_ID)return
   try{
-    // ── Run ALL fetches in parallel (no per-call timeout — sbLoad*
-    //    already returns [] on error; master timeout in afterSignInSafe) ──
+    // All fetches run in parallel — total time = slowest single call
     const [
       budgets, expenses, insts, goals, todos, wl, sched, userCats,
       pb, pe, pi, pt, pw, ps
     ] = await Promise.all([
-      sbLoadBudgets(AU_SB_ID),
-      sbLoadExpenses(AU_SB_ID),
-      sbLoadInstallments(AU_SB_ID),
-      sbLoadGoals(AU_SB_ID),
-      sbLoadTodos(AU_SB_ID),
-      sbLoadWishlist(AU_SB_ID),
-      sbLoadSchedule(AU_SB_ID),
-      sbLoadCategories(AU_SB_ID),
-      AU_PARTNER_ID ? sbLoadBudgets(AU_PARTNER_ID)      : Promise.resolve([]),
-      AU_PARTNER_ID ? sbLoadExpenses(AU_PARTNER_ID)     : Promise.resolve([]),
-      AU_PARTNER_ID ? sbLoadInstallments(AU_PARTNER_ID) : Promise.resolve([]),
-      AU_PARTNER_ID ? sbLoadTodos(AU_PARTNER_ID)        : Promise.resolve([]),
-      AU_PARTNER_ID ? sbLoadWishlist(AU_PARTNER_ID)     : Promise.resolve([]),
-      AU_PARTNER_ID ? sbLoadSchedule(AU_PARTNER_ID)     : Promise.resolve([]),
+      sbCall(sbLoadBudgets(AU_SB_ID)),
+      sbCall(sbLoadExpenses(AU_SB_ID)),
+      sbCall(sbLoadInstallments(AU_SB_ID)),
+      sbCall(sbLoadGoals(AU_SB_ID)),
+      sbCall(sbLoadTodos(AU_SB_ID)),
+      sbCall(sbLoadWishlist(AU_SB_ID)),
+      sbCall(sbLoadSchedule(AU_SB_ID)),
+      sbCall(sbLoadCategories(AU_SB_ID)),
+      AU_PARTNER_ID ? sbCall(sbLoadBudgets(AU_PARTNER_ID))      : Promise.resolve([]),
+      AU_PARTNER_ID ? sbCall(sbLoadExpenses(AU_PARTNER_ID))     : Promise.resolve([]),
+      AU_PARTNER_ID ? sbCall(sbLoadInstallments(AU_PARTNER_ID)) : Promise.resolve([]),
+      AU_PARTNER_ID ? sbCall(sbLoadTodos(AU_PARTNER_ID))        : Promise.resolve([]),
+      AU_PARTNER_ID ? sbCall(sbLoadWishlist(AU_PARTNER_ID))     : Promise.resolve([]),
+      AU_PARTNER_ID ? sbCall(sbLoadSchedule(AU_PARTNER_ID))     : Promise.resolve([]),
     ])
     // Map results
     S.budgets.u1=(budgets||[]).map(b=>({id:b.id,uid:'u1',title:b.title,type:b.budget_type||'📋 General',amt:parseFloat(b.amount)||0,spent:parseFloat(b.total_spent)||0,start:b.start_date,days:b.duration_days||30,end:b.end_date,status:b.status,xfer:parseFloat(b.transferred)||0,notes:b.notes||''}))
