@@ -67,7 +67,32 @@ input,select,textarea,button{font-family:inherit}
 .ucard:hover{background:var(--border)}
 .uav{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;border:2.5px solid var(--pink-mid);background:var(--pink-l);overflow:hidden;position:relative}
 .uav img{width:100%;height:100%;object-fit:cover;border-radius:50%}
-.uav .pulse-dot{position:absolute;bottom:0;right:0;width:9px;height:9px;border-radius:50%;background:var(--teal);border:2px solid var(--bg2)}
+.uav 
+/* ── MONTHLY DATE BUDGET THEME ───────────────────────── */
+#page-datebudget .goal-card{
+  background:var(--bg2);
+  border-radius:14px;
+  border:1.5px solid var(--border);
+  padding:14px 16px;
+  transition:box-shadow .2s;
+}
+#page-datebudget .goal-card:hover{
+  box-shadow:0 4px 20px rgba(233,30,140,.12);
+}
+#page-datebudget .phd{
+  background:linear-gradient(135deg,rgba(233,30,140,.08),rgba(194,24,91,.04));
+  border-radius:14px;
+  padding:14px 16px;
+  border:1.5px solid rgba(233,30,140,.18);
+  margin-bottom:14px;
+}
+#page-datebudget .ptitle{
+  background:linear-gradient(135deg,#e91e8c,#c2185b);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+.pulse-dot{position:absolute;bottom:0;right:0;width:9px;height:9px;border-radius:50%;background:var(--teal);border:2px solid var(--bg2)}
 .uinfo{flex:1;min-width:0;overflow:hidden;transition:opacity .2s}
 .sidebar.col .uinfo{opacity:0;width:0}
 .uname{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -734,11 +759,12 @@ tbody tr:hover td{background:var(--bg3)}
     <button class="nb active" onclick="gp('overview',this)"><span class="ni">📊</span><span class="nl">Overview</span></button>
     <button class="nb" onclick="gp('mine',this)"><span class="ni">👤</span><span class="nl">My Budget</span></button>
     <button class="nb" onclick="gp('partner',this)"><span class="ni">💑</span><span class="nl">Partner Budget</span></button>
-    <button class="nb" onclick="gp('mymoney',this)"><span class="ni">💵</span><span class="nl">My Wallet</span></button>
+    
     <button class="nb" onclick="gp('mysavings',this)"><span class="ni">🐱</span><span class="nl">My Savings</span></button>
     <button class="nb" onclick="gp('partnersavings',this)"><span class="ni">🐈</span><span class="nl">Partner Savings</span></button>
     <button class="nb" onclick="gp('myaccounts',this)"><span class="ni">🏧</span><span class="nl">My Accounts</span></button>
     <button class="nb" onclick="gp('shared',this)"><span class="ni">🏦</span><span class="nl">Shared Goals</span></button>
+    <button class="nb" onclick="gp('datebudget',this)"><span class="ni">💑</span><span class="nl">Monthly Date</span></button>
     <div class="nav-sec">Insights</div>
     <button class="nb" onclick="gp('reports',this)"><span class="ni">📈</span><span class="nl">Reports & History</span></button>
     <button class="nb" onclick="gp('categories',this)"><span class="ni">🏷️</span><span class="nl">Categories</span></button>
@@ -843,7 +869,7 @@ tbody tr:hover td{background:var(--bg3)}
 
 
 <!-- ══════════ MY WALLET ══════════ -->
-<div class="page" id="page-mymoney">
+<div class="page" id="page-mymoney" style="display:none!important">
   <div class="phd">
     <div><div class="ptitle" id="mymoney-title">My Wallet 💵</div><div class="psub">Your private money — only visible to you</div></div>
     <button class="btn btn-p" onclick="openAddWalletSub();CP(event)">+ New Wallet</button>
@@ -965,15 +991,25 @@ tbody tr:hover td{background:var(--bg3)}
     <input type="hidden" id="acct-eid"/>
     <div class="fg"><label>Account Name</label><input id="acct-name" placeholder="e.g. Cash, GCash, BDO Savings…" maxlength="60"/></div>
     <div class="fg"><label>Type</label>
-      <select id="acct-type">
+      <select id="acct-type" onchange="toggleAcctCustomType()">
         <option value="💵 Cash">💵 Cash</option>
         <option value="📱 GCash">📱 GCash</option>
         <option value="🏦 Bank">🏦 Bank Account</option>
         <option value="💳 E-Wallet">💳 E-Wallet</option>
         <option value="🚨 Emergency Fund">🚨 Emergency Fund</option>
         <option value="🎯 Savings">🎯 Savings</option>
-        <option value="💼 Other">💼 Other</option>
+        <option value="🐷 Piggy Bank">🐷 Piggy Bank</option>
+        <option value="₿ Crypto Wallet">₿ Crypto Wallet</option>
+        <option value="✈️ Travel Money">✈️ Travel Money</option>
+        <option value="💼 Others">💼 Others (Custom)</option>
       </select>
+    </div>
+    <div class="fg" id="acct-custom-wrap" style="display:none">
+      <label>Custom Type Name</label>
+      <div style="display:flex;gap:8px">
+        <input id="acct-custom-emoji" placeholder="🎯" maxlength="4" style="width:70px;flex-shrink:0"/>
+        <input id="acct-custom-name" placeholder="e.g. Emergency Fund, Secret Stash…" maxlength="40" style="flex:1"/>
+      </div>
     </div>
     <div class="fg"><label>Opening Balance (₱)</label><input id="acct-balance" type="number" min="0" step="0.01" value="0" placeholder="0.00"/></div>
     <div class="err" id="acct-err"></div>
@@ -1077,6 +1113,45 @@ tbody tr:hover td{background:var(--bg3)}
   <div class="past-section" id="sh-past" style="display:none">
     <div class="past-sec-title">📋 Past Budget Transfers to Savings</div>
     <div class="past-grid" id="sh-past-grid"></div>
+  </div>
+</div>
+
+<!-- ══════════ MONTHLY DATE BUDGET ══════════ -->
+<div class="page" id="page-datebudget">
+  <div class="phd">
+    <div><div class="ptitle">Monthly Date Budget 💑</div><div class="psub">Shared budget for your dates &amp; relationship activities</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-p" style="background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" onclick="openDateFund(event)">💰 Add Funds</button>
+      <button class="btn btn-p" onclick="openDateCat(event)">+ Category</button>
+    </div>
+  </div>
+
+  <!-- Hero stats -->
+  <div class="sgrid" id="db-stats"></div>
+
+  <!-- Category cards + pie chart -->
+  <div class="g60" style="margin-bottom:14px">
+    <div id="db-cats-list"></div>
+    <div class="card" style="margin:0">
+      <div class="chd"><span class="ctitle">🍩 Spending Breakdown</span></div>
+      <div style="height:200px;position:relative;margin-bottom:12px"><canvas id="dbPie"></canvas></div>
+      <div id="dbContribSplit"></div>
+    </div>
+  </div>
+
+  <!-- Expense history -->
+  <div class="card">
+    <div class="chd">
+      <span class="ctitle">📋 Date Expense History</span>
+      <span class="badge bi" id="db-exp-cnt">0 entries</span>
+    </div>
+    <div id="db-exp-list"></div>
+  </div>
+
+  <!-- Fund / top-up history -->
+  <div class="card" style="margin-top:14px">
+    <div class="chd"><span class="ctitle">💸 Fund History</span><span class="badge bg" id="db-fund-cnt">0 entries</span></div>
+    <div id="db-fund-list"></div>
   </div>
 </div>
 
@@ -1380,6 +1455,72 @@ tbody tr:hover td{background:var(--bg3)}
 </div>
 
 <!-- Add/Edit Savings -->
+<!-- ══════════ DATE BUDGET MODALS ══════════ -->
+
+<!-- Add Funds modal -->
+<div class="overlay" id="m-dateFund" style="display:none" onclick="obg(event,'m-dateFund')">
+  <div class="modal">
+    <div class="mhd"><div class="mtitle" id="df-title">💰 Add Funds to Date Budget</div><button class="mclose" onclick="cm('m-dateFund')">✕</button></div>
+    <input type="hidden" id="df-eid"/>
+    <div class="mbody">
+      <div class="fg"><label>Amount (₱)</label><input type="number" id="df-amt" placeholder="e.g. 500" min="0"/></div>
+      <div class="fg"><label>Funded by</label>
+        <select id="df-who">
+          <option value="u1" id="df-who-u1">Me</option>
+          <option value="u2" id="df-who-u2">Partner</option>
+          <option value="both">Both (split)</option>
+        </select>
+      </div>
+      <div class="fg"><label>Note (optional)</label><input type="text" id="df-note" placeholder="e.g. February date money"/></div>
+      <div class="fg"><label>Date</label><input type="date" id="df-date"/></div>
+      <div class="err" id="df-err" style="display:none"></div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="cm('m-dateFund')">Cancel</button><button class="btn btn-p" style="background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" onclick="saveDateFund(event)">Add Funds</button></div>
+  </div>
+</div>
+
+<!-- Add Category modal -->
+<div class="overlay" id="m-dateCat" style="display:none" onclick="obg(event,'m-dateCat')">
+  <div class="modal">
+    <div class="mhd"><div class="mtitle" id="dc-title">🏷️ New Date Category</div><button class="mclose" onclick="cm('m-dateCat')">✕</button></div>
+    <input type="hidden" id="dc-eid"/>
+    <div class="mbody">
+      <div class="fg"><label>Category Name</label><input type="text" id="dc-name" placeholder="e.g. Coffee Dates"/></div>
+      <div class="frow">
+        <div class="fg"><label>Icon</label><input type="text" id="dc-icon" placeholder="☕" maxlength="4"/></div>
+        <div class="fg"><label>Budget Limit (₱)</label><input type="number" id="dc-limit" placeholder="0 = unlimited" min="0"/></div>
+      </div>
+      <div class="fg"><label>Color</label><input type="color" id="dc-color" value="#e91e8c"/></div>
+      <div class="err" id="dc-err" style="display:none"></div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="cm('m-dateCat')">Cancel</button><button class="btn btn-p" onclick="saveDateCat(event)">Save</button></div>
+  </div>
+</div>
+
+<!-- Add Expense modal -->
+<div class="overlay" id="m-dateExp" style="display:none" onclick="obg(event,'m-dateExp')">
+  <div class="modal">
+    <div class="mhd"><div class="mtitle" id="de-title">🍽️ Add Date Expense</div><button class="mclose" onclick="cm('m-dateExp')">✕</button></div>
+    <input type="hidden" id="de-eid"/>
+    <div class="mbody">
+      <div class="fg"><label>Description</label><input type="text" id="de-desc" placeholder="e.g. Dinner at Manam"/></div>
+      <div class="fg"><label>Amount (₱)</label><input type="number" id="de-amt" placeholder="e.g. 800" min="0"/></div>
+      <div class="fg"><label>Category</label><select id="de-cat"></select></div>
+      <div class="fg"><label>Paid by</label>
+        <select id="de-who">
+          <option value="u1" id="de-who-u1">Me</option>
+          <option value="u2" id="de-who-u2">Partner</option>
+          <option value="both">Both (split)</option>
+        </select>
+      </div>
+      <div class="fg"><label>Date</label><input type="date" id="de-date"/></div>
+      <div class="fg"><label>Note (optional)</label><input type="text" id="de-note" placeholder="Optional note…"/></div>
+      <div class="err" id="de-err" style="display:none"></div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="cm('m-dateExp')">Cancel</button><button class="btn btn-p" style="background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" onclick="saveDateExp(event)">Add Expense</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="m-addSav" style="display:none" onclick="obg(event,'m-addSav')">
   <div class="modal"><div class="mtitle" id="sav-mtitle">🏦 Add to Savings</div>
     <input type="hidden" id="sav-eid"/><input type="hidden" id="sav-gid"/>
@@ -1631,6 +1772,7 @@ const PM={
   mine:{t:'My Budget 👤',s:'Personal budget cycles'},
   partner:{t:'Partner Budget 💑',s:"Partner's budget overview"},
   shared:{t:'Shared Goals 🎯',s:'Shared financial goals'},
+  datebudget:{t:'Monthly Date Budget 💑',s:'Shared budget for dates & relationship activities'},
   reports:{t:'Reports & History 📈',s:'Spending comparison and full history'},
   categories:{t:'Categories 🏷️',s:'Manage custom expense categories'},
   todo:{t:'To-Do & Schedule ✅',s:'Tasks, reminders, and calendar'},
@@ -1654,13 +1796,14 @@ function renderPage(p){
   if(p==='mine')      renderBP('mine')
   if(p==='partner')   renderBP('partner')
   if(p==='shared')    renderShared()
+  if(p==='datebudget')renderDateBudget()
   if(p==='reports')   renderReports()
   if(p==='categories')renderCats()
   if(p==='todo')      renderTodo()
   if(p==='wishlist')  renderWishlist()
   if(p==='profile')   renderProfile()
   if(p==='myaccounts')       renderAccounts()
-  if(p==='mymoney')         renderWallet('mine')
+
   if(p==='mysavings')       renderISavings('mine')
   if(p==='partnersavings')  renderISavings('partner')
   if(p==='partnermoney') renderWallet('partner')
@@ -1937,7 +2080,7 @@ function renderBContent(scope,bid,isOwn){
     const byDate={}; exps.forEach(e=>{byDate[e.date]=(byDate[e.date]||0)+e.amt})
     const dates=Object.keys(byDate).sort()
     // Also fill in zero-spend days within budget range for complete picture
-    const startD=new Date(b.start+'T12:00:00'), endD=new Date(b.end+'T12:00:00')
+    const startD=new Date(b.start+'T12:00:00'), endD=b.end?new Date(b.end+'T12:00:00'):new Date()
     const allDates=[]; let cur=new Date(startD)
     while(cur<=endD&&allDates.length<31){allDates.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1)}
     const trendLabels=allDates.map(d=>d.slice(5)) // MM-DD
@@ -2648,19 +2791,21 @@ async function updateBudget(e,bid){
   CP(e)
   const b=getBudget(bid); if(!b){showErr('nb-err','Budget not found');return}
   const title=document.getElementById('nb-title').value.trim()
-  const days=parseInt(document.getElementById('nb-days').value)
+  const unlimited=document.getElementById('nb-unlimited')?.checked
+  const daysRaw=parseInt(document.getElementById('nb-days').value)
   const type=document.getElementById('nb-type').value
   const notes=document.getElementById('nb-notes').value
   const amt2=parseFloat(document.getElementById('nb-amt').value)||b.amt
   if(!title){showErr('nb-err','Title is required');return}
-  const hasDays=!!days&&days>0
-  // Update local state
-  b.title=title; b.amt=amt2; b.days=hasDays?days:null; b.type=type; b.notes=notes
-  b.end=hasDays?addD(b.start,days-1):null
+  if(!unlimited&&(!daysRaw||daysRaw<1)){showErr('nb-err','Set a duration or check "No deadline"');return}
+  const hasDays=!unlimited&&!!daysRaw&&daysRaw>0
+  // Update local state - properly handle deadline removal
+  b.title=title; b.amt=amt2; b.days=hasDays?daysRaw:null; b.type=type; b.notes=notes
+  b.end=hasDays?addD(b.start,daysRaw-1):null
   // Update Supabase
   if(SB_READY&&AU_SB_ID){
     const {error}=await _sb.from('budgets').update({
-      title,amount:amt2,duration_days:hasDays?days:null,end_date:b.end,budget_type:type,notes
+      title,amount:amt2,duration_days:hasDays?daysRaw:null,end_date:hasDays?addD(b.start,daysRaw-1):null,budget_type:type,notes
     }).eq('id',bid)
     if(error){showErr('nb-err','Failed to save changes');return}
   }
@@ -2671,11 +2816,17 @@ async function updateBudget(e,bid){
 function openEditBudget(scope,bid){
   const b=getBudget(bid); if(!b)return
   S._ctx=scope
+  const isUnlimited=!b.days
   document.getElementById('nb-eid').value=bid
   document.getElementById('nb-title').value=b.title
   document.getElementById('nb-amt').value=b.amt
   document.getElementById('nb-start').value=b.start
-  document.getElementById('nb-days').value=b.days
+  // Handle unlimited checkbox
+  const ubCb=document.getElementById('nb-unlimited')
+  if(ubCb){ubCb.checked=isUnlimited}
+  const dw=document.getElementById('nb-days-wrap')
+  if(dw)dw.style.display=isUnlimited?'none':'block'
+  document.getElementById('nb-days').value=b.days||''
   document.getElementById('nb-type').value=b.type
   document.getElementById('nb-notes').value=b.notes||''
   document.querySelector('#m-newBudget .mtitle').textContent='✏️ Edit Budget'
@@ -2785,17 +2936,40 @@ async function saveInst(e){
   cm('m-addInst');renderPage(CUR)
 }
 async function undoInstPay(iid,pid){
-  if(!confirm('Undo this payment? The installment count will be reduced.'))return
+  if(!confirm('Undo this payment? The installment count will be reduced and the expense will be reversed.'))return
   const pay=S.instPays.find(p=>p.id===pid); if(!pay)return
   const inst=allInsts().find(i=>i.id===iid); if(!inst)return
+  const uid2=inst.uid||'u1'
+  const sbUserId=uid2==='u1'?AU_SB_ID:AU_PARTNER_ID
+  // Delete the payment record from DB
   if(SB_READY&&AU_SB_ID){
     await _sb.from('installment_payments').delete().eq('id',pid)
+  }
+  // Reverse the associated expense if it was auto-added
+  // Look for matching expense in the correct budget
+  const targetBudget=inst.bid?getBudget(inst.bid):null
+  const allUserExps=S.expenses[uid2]||[]
+  // Find the auto-added expense matching this payment (same date + description + amount)
+  const matchedExp=allUserExps.find(e=>
+    e.desc===`Installment: ${inst.name}`&&
+    e.amt===inst.payAmt&&
+    e.date===pay.date&&
+    (targetBudget?e.bid===targetBudget.id:true)
+  )
+  if(matchedExp){
+    // Delete expense from DB
+    if(SB_READY&&sbUserId) await _sb.from('expenses').delete().eq('id',matchedExp.id)
+    // Remove from local state
+    S.expenses[uid2]=(S.expenses[uid2]||[]).filter(e=>e.id!==matchedExp.id)
+    // Restore budget balance
+    const expBudget=getBudget(matchedExp.bid)
+    if(expBudget)expBudget.spent=Math.max(0,expBudget.spent-inst.payAmt)
   }
   S.instPays=S.instPays.filter(p=>p.id!==pid)
   inst.paid=Math.max(0,(inst.paid||0)-1)
   if(inst.status==='completed')inst.status='active'
   if(SB_READY&&AU_SB_ID)await _sb.from('installments').update({payments_made:inst.paid,status:inst.status}).eq('id',iid)
-  toast('Payment undone ↩️');renderPage(CUR)
+  toast('Payment undone ↩️ — expense reversed and balance restored');renderPage(CUR)
 }
 async function delInst(uid2,iid){if(SB_READY&&AU_SB_ID){await _sb.from('installments').delete().eq('id',iid)};S.insts[uid2]=(S.insts[uid2]||[]).filter(x=>x.id!==iid);S.instPays=S.instPays.filter(x=>x.iid!==iid);toast('Installment deleted 🗑️');renderPage(CUR)}
 function openPayInst(e,uid2,iid){
@@ -2811,16 +2985,18 @@ async function payInst(e){
   inst.paid++;if(inst.paid>=inst.numPay)inst.status='completed'
   let expId=null
   if(inst.auto){
-    const acts=getActiveBudgets(uid2)
-    if(acts.length){
+    // Use the installment's own sub-budget (inst.bid), fallback to first active budget
+    const targetBudget=inst.bid?getBudget(inst.bid):getActiveBudgets(uid2)[0]
+    if(targetBudget){
       if(!S.expenses[uid2])S.expenses[uid2]=[]
       let newExpId=uid()
+      const billsCat=S.cats.find(c=>c.name==='Bills')||S.cats.find(c=>c.name==='Other')||S.cats[0]
       if(SB_READY&&sbUserId){
-        const saved=await sbCreateExpense({user_id:sbUserId,budget_id:acts[0].id,description:`Installment: ${inst.name}`,amount:inst.payAmt,expense_date:date,category_id:(S.cats.find(c=>c.name==='Bills')||S.cats.find(c=>c.name==='Other')||S.cats[0])?.id||'',payment_method:inst.pm})
+        const saved=await sbCreateExpense({user_id:sbUserId,budget_id:targetBudget.id,description:`Installment: ${inst.name}`,amount:inst.payAmt,expense_date:date,category_id:billsCat?.id||'',payment_method:inst.pm})
         if(saved){newExpId=saved.id;expId=saved.id}
       }
-      S.expenses[uid2].push({id:newExpId,uid:uid2,bid:acts[0].id,desc:`Installment: ${inst.name}`,amt:inst.payAmt,date,catId:(S.cats.find(c=>c.name==='Bills')||S.cats.find(c=>c.name==='Other')||S.cats[0])?.id||'cat4',pm:inst.pm,custCat:''})
-      acts[0].spent+=inst.payAmt
+      S.expenses[uid2].push({id:newExpId,uid:uid2,bid:targetBudget.id,desc:`Installment: ${inst.name}`,amt:inst.payAmt,date,catId:billsCat?.id||'cat4',pm:inst.pm,custCat:''})
+      targetBudget.spent+=inst.payAmt
     }
   }
   if(SB_READY&&sbUserId){
@@ -2903,6 +3079,347 @@ async function saveGoal(e){
   cm('m-newGoal');renderShared()
 }
 async function delGoal(gid){if(SB_READY&&AU_SB_ID)await sbDeleteGoal(gid);S.goals=S.goals.filter(g=>g.id!==gid);toast('Goal deleted 🗑️');renderShared()}
+
+// ─── MONTHLY DATE BUDGET ─────────────────────────────────
+const DB_DEFAULT_CATS=[
+  {id:'dbc-food',name:'Food Dates',icon:'🍽️',color:'#e91e8c',limit:0},
+  {id:'dbc-movie',name:'Movies',icon:'🎬',color:'#9c27b0',limit:0},
+  {id:'dbc-travel',name:'Travel Dates',icon:'✈️',color:'#2196f3',limit:0},
+  {id:'dbc-gift',name:'Gifts',icon:'🎁',color:'#ff5722',limit:0},
+  {id:'dbc-coffee',name:'Coffee Dates',icon:'☕',color:'#795548',limit:0},
+  {id:'dbc-other',name:'Other',icon:'💕',color:'#f06292',limit:0}
+]
+
+function dbTotal(){return(S.dateBudget.funds||[]).reduce((a,f)=>a+(f.amt||0),0)}
+function dbSpent(){return(S.dateBudget.expenses||[]).reduce((a,e)=>a+(e.amt||0),0)}
+function dbRemaining(){return Math.max(0,dbTotal()-dbSpent())}
+function dbCats(){
+  const base=DB_DEFAULT_CATS.map(c=>({...c}))
+  const custom=S.dateBudget.cats||[]
+  return [...base,...custom]
+}
+function dbCatSpent(catId){return(S.dateBudget.expenses||[]).filter(e=>e.catId===catId).reduce((a,e)=>a+(e.amt||0),0)}
+
+function renderDateBudget(){
+  const total=dbTotal(),spent=dbSpent(),rem=dbRemaining()
+  const cats=dbCats()
+  const u1Name=USERS.u1.name,u2Name=USERS.u2.name
+  const u1Funds=(S.dateBudget.funds||[]).filter(f=>f.who==='u1').reduce((a,f)=>a+f.amt,0)
+  const u2Funds=(S.dateBudget.funds||[]).filter(f=>f.who==='u2').reduce((a,f)=>a+f.amt,0)
+  const bothFunds=(S.dateBudget.funds||[]).filter(f=>f.who==='both').reduce((a,f)=>a+f.amt,0)
+
+  // Stats
+  document.getElementById('db-stats').innerHTML=`
+    <div class="sc" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0);border:1.5px solid #f48fb1">
+      <div class="sc-ico">💰</div><div class="sc-lbl" style="color:#880e4f">Total Funds</div>
+      <div class="sc-val" style="color:#c2185b">${P(total)}</div>
+      <span class="sdelta du">added to date fund</span>
+    </div>
+    <div class="sc" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0);border:1.5px solid #f06292">
+      <div class="sc-ico">🧾</div><div class="sc-lbl" style="color:#880e4f">Total Spent</div>
+      <div class="sc-val" style="color:#e91e8c">${P(spent)}</div>
+      <span class="sdelta dn">${pct(spent,total)}% of budget used</span>
+    </div>
+    <div class="sc" style="background:linear-gradient(135deg,#e8f5e9,#c8e6c9);border:1.5px solid #a5d6a7">
+      <div class="sc-ico">💕</div><div class="sc-lbl" style="color:#1b5e20">Remaining</div>
+      <div class="sc-val" style="color:#2e7d32">${P(rem)}</div>
+      <span class="sdelta du">${rem>0?'available for dates':'budget used up'}</span>
+    </div>
+    <div class="sc" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0);border:1.5px solid #f48fb1">
+      <div class="sc-ico">🗓️</div><div class="sc-lbl" style="color:#880e4f">Date Entries</div>
+      <div class="sc-val" style="color:#c2185b">${(S.dateBudget.expenses||[]).length}</div>
+      <span class="sdelta dn">experiences tracked</span>
+    </div>
+  `
+
+  // Category cards
+  const catList=document.getElementById('db-cats-list')
+  catList.innerHTML=`<div style="display:flex;flex-direction:column;gap:10px">`+
+    cats.map(cat=>{
+      const cs=dbCatSpent(cat.id)
+      const lim=cat.limit||0
+      const pp=lim>0?Math.min(100,Math.round(cs/lim*100)):0
+      const isDefault=cat.id.startsWith('dbc-')
+      return`<div class="goal-card" style="border-left:4px solid ${cat.color};padding:14px 16px">
+        <div class="goal-hd">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="goal-icon" style="background:${cat.color}22;border:1.5px solid ${cat.color}44;font-size:20px">${cat.icon}</div>
+            <div>
+              <div class="goal-title">${esc(cat.name)}</div>
+              <div class="goal-sub">${lim>0?'Limit: '+P(lim):'No limit set'}</div>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:16px;font-weight:800;color:${cat.color}">${P(cs)}</div>
+            <div style="font-size:10px;color:var(--txt3)">spent</div>
+          </div>
+        </div>
+        ${lim>0?`<div class="pw" style="height:8px;margin:8px 0"><div class="pf" style="width:${pp}%;background:linear-gradient(90deg,${cat.color}88,${cat.color})"></div></div><div class="pmeta"><span>${P(cs)} spent</span><span>Limit: ${P(lim)}</span></div>`:''}
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+          <button class="btn btn-sm" style="background:${cat.color};color:#fff;border-color:transparent;font-size:12px" onclick="openDateExp(event,'${cat.id}')">+ Expense</button>
+          ${!isDefault?`<button class="btn btn-xs btn-g" onclick="openDateCatEdit(event,'${cat.id}')">✏️</button><button class="btn btn-xs btn-d" onclick="delConfirm('🗑️ Delete Category','Delete &ldquo;${esc(cat.name)}&rdquo; and its expenses? This cannot be undone.',()=>delDateCat('${cat.id}'))">🗑️</button>`:''}
+        </div>
+      </div>`
+    }).join('')+`</div>
+    <button class="btn btn-p" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" onclick="openDateCat(event)">+ Add Custom Category</button>`
+
+  // Pie chart
+  const cc=CC()
+  const pieData=cats.map(c=>({c,amt:dbCatSpent(c.id)})).filter(x=>x.amt>0)
+  if(pieData.length>0){
+    mkChart('dbPie',{type:'doughnut',data:{datasets:[{data:pieData.map(x=>x.amt),backgroundColor:pieData.map(x=>x.c.color+'cc'),borderWidth:2,borderColor:cc.bg2,hoverOffset:8}],labels:pieData.map(x=>`${x.c.icon} ${x.c.name}`)},options:{...dOpts(cc),plugins:{...dOpts(cc).plugins,legend:{display:true,position:'right',labels:{color:cc.txt2,font:{family:'DM Sans',size:11},usePointStyle:true,boxWidth:10,padding:10}}}}})
+  } else {
+    const cv=document.getElementById('dbPie');if(cv){const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height)}
+  }
+
+  // Contribution split (who funded how much)
+  document.getElementById('dbContribSplit').innerHTML=`
+    <div style="margin-top:10px;padding-top:10px;border-top:1.5px solid var(--border)">
+      <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--pink)">💑 Funding Split</div>
+      ${[{uid:'u1',name:u1Name,av:USERS.u1.avatar,total:u1Funds+bothFunds*0.5},{uid:'u2',name:u2Name,av:USERS.u2.avatar,total:u2Funds+bothFunds*0.5}].map(r=>`
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span style="font-size:20px">${r.av}</span>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:600">${esc(r.name)}</div>
+            <div class="pw" style="margin-top:4px"><div class="pf pfp" style="width:${pct(r.total,total||1)}%;background:linear-gradient(90deg,#f48fb1,#e91e8c)"></div></div>
+          </div>
+          <div style="font-size:13px;font-weight:700;color:var(--pink)">${P(r.total)}</div>
+        </div>`).join('')}
+    </div>`
+
+  // Expense history
+  const exps=(S.dateBudget.expenses||[]).slice().sort((a,b)=>new Date(b.date)-new Date(a.date))
+  document.getElementById('db-exp-cnt').textContent=exps.length+' entries'
+  document.getElementById('db-exp-list').innerHTML=exps.length===0
+    ?'<div class="empty"><div class="empty-ico">🍽️</div><p>No date expenses yet<br><span style="font-size:12px;color:var(--txt3)">Add your first date expense above ↑</span></p></div>'
+    :exps.map(e=>{
+      const cat=dbCats().find(c=>c.id===e.catId)||{icon:'💕',name:'Other',color:'#f06292'}
+      const whoLabel=e.who==='both'?'Both 💑':e.who==='u1'?USERS.u1.name:USERS.u2.name
+      return`<div class="row">
+        <div class="rico" style="background:${cat.color}22;font-size:18px">${cat.icon}</div>
+        <div class="rinfo">
+          <div class="rname">${esc(e.desc)}</div>
+          <div class="rsub">${fmtD(e.date)} · ${esc(cat.name)} · Paid by ${whoLabel}${e.note?' · '+esc(e.note):''}</div>
+        </div>
+        <div class="rright">
+          <div class="ramt" style="color:var(--pink)">−${P(e.amt)}</div>
+          <div class="racts">
+            <button class="btn-ico btn btn-xs" onclick="openDateExpEdit(event,'${e.id}')">✏️</button>
+            <button class="btn-ico btn btn-xs btn-d" onclick="delConfirm('🗑️ Remove Expense','Remove this expense of ${P(e.amt)}?',()=>delDateExp('${e.id}'))">🗑️</button>
+          </div>
+        </div>
+      </div>`
+    }).join('')
+
+  // Fund history
+  const funds=(S.dateBudget.funds||[]).slice().sort((a,b)=>new Date(b.date)-new Date(a.date))
+  document.getElementById('db-fund-cnt').textContent=funds.length+' entries'
+  document.getElementById('db-fund-list').innerHTML=funds.length===0
+    ?'<div class="empty"><div class="empty-ico">💰</div><p>No funds added yet</p></div>'
+    :funds.map(f=>{
+      const whoLabel=f.who==='both'?'Both 💑':f.who==='u1'?USERS.u1.name:USERS.u2.name
+      return`<div class="row">
+        <div class="rico" style="background:var(--teal-bg)">💰</div>
+        <div class="rinfo">
+          <div class="rname">Funds added by ${whoLabel}</div>
+          <div class="rsub">${fmtD(f.date)}${f.note?' · '+esc(f.note):''}</div>
+        </div>
+        <div class="rright">
+          <div class="ramt" style="color:var(--teal)">+${P(f.amt)}</div>
+          <div class="racts">
+            <button class="btn-ico btn btn-xs btn-d" onclick="delConfirm('🗑️ Remove','Remove +${P(f.amt)} fund entry?',()=>delDateFund('${f.id}'))">🗑️</button>
+          </div>
+        </div>
+      </div>`
+    }).join('')
+}
+
+// ─── Date Budget: OPEN MODALS ─────────────────────────────
+function openDateFund(e){
+  CP(e)
+  document.getElementById('df-eid').value=''
+  document.getElementById('df-amt').value=''
+  document.getElementById('df-note').value=''
+  document.getElementById('df-date').value=tod()
+  document.getElementById('df-who').value='u1'
+  // Label both options with real names
+  const u1o=document.getElementById('df-who-u1');if(u1o)u1o.textContent=USERS.u1.name||'Me'
+  const u2o=document.getElementById('df-who-u2');if(u2o)u2o.textContent=USERS.u2.name||'Partner'
+  const err=document.getElementById('df-err');if(err)err.style.display='none'
+  document.getElementById('df-title').textContent='💰 Add Funds to Date Budget'
+  document.getElementById('m-dateFund').style.display='flex'
+}
+function openDateCat(e){
+  CP(e)
+  document.getElementById('dc-eid').value=''
+  document.getElementById('dc-name').value=''
+  document.getElementById('dc-icon').value=''
+  document.getElementById('dc-limit').value=''
+  document.getElementById('dc-color').value='#e91e8c'
+  const err=document.getElementById('dc-err');if(err)err.style.display='none'
+  document.getElementById('dc-title').textContent='🏷️ New Date Category'
+  document.getElementById('m-dateCat').style.display='flex'
+}
+function openDateCatEdit(e,cid){
+  CP(e)
+  const cat=(S.dateBudget.cats||[]).find(c=>c.id===cid);if(!cat)return
+  document.getElementById('dc-eid').value=cid
+  document.getElementById('dc-name').value=cat.name
+  document.getElementById('dc-icon').value=cat.icon
+  document.getElementById('dc-limit').value=cat.limit||''
+  document.getElementById('dc-color').value=cat.color||'#e91e8c'
+  const err=document.getElementById('dc-err');if(err)err.style.display='none'
+  document.getElementById('dc-title').textContent='✏️ Edit Category'
+  document.getElementById('m-dateCat').style.display='flex'
+}
+function openDateExp(e,catId){
+  CP(e)
+  document.getElementById('de-eid').value=''
+  document.getElementById('de-desc').value=''
+  document.getElementById('de-amt').value=''
+  document.getElementById('de-note').value=''
+  document.getElementById('de-date').value=tod()
+  document.getElementById('de-who').value='u1'
+  const u1o=document.getElementById('de-who-u1');if(u1o)u1o.textContent=USERS.u1.name||'Me'
+  const u2o=document.getElementById('de-who-u2');if(u2o)u2o.textContent=USERS.u2.name||'Partner'
+  // Populate category select
+  const sel=document.getElementById('de-cat')
+  sel.innerHTML=dbCats().map(c=>`<option value="${c.id}" ${c.id===catId?'selected':''}>${c.icon} ${esc(c.name)}</option>`).join('')
+  const err=document.getElementById('de-err');if(err)err.style.display='none'
+  document.getElementById('de-title').textContent='🍽️ Add Date Expense'
+  document.getElementById('m-dateExp').style.display='flex'
+}
+function openDateExpEdit(e,eid){
+  CP(e)
+  const exp=(S.dateBudget.expenses||[]).find(x=>x.id===eid);if(!exp)return
+  document.getElementById('de-eid').value=eid
+  document.getElementById('de-desc').value=exp.desc
+  document.getElementById('de-amt').value=exp.amt
+  document.getElementById('de-note').value=exp.note||''
+  document.getElementById('de-date').value=exp.date
+  document.getElementById('de-who').value=exp.who||'u1'
+  const u1o=document.getElementById('de-who-u1');if(u1o)u1o.textContent=USERS.u1.name||'Me'
+  const u2o=document.getElementById('de-who-u2');if(u2o)u2o.textContent=USERS.u2.name||'Partner'
+  const sel=document.getElementById('de-cat')
+  sel.innerHTML=dbCats().map(c=>`<option value="${c.id}" ${c.id===exp.catId?'selected':''}>${c.icon} ${esc(c.name)}</option>`).join('')
+  const err=document.getElementById('de-err');if(err)err.style.display='none'
+  document.getElementById('de-title').textContent='✏️ Edit Date Expense'
+  document.getElementById('m-dateExp').style.display='flex'
+}
+
+// ─── Date Budget: SAVE / DELETE CRUD ─────────────────────
+async function saveDateFund(e){
+  CP(e)
+  const eid=document.getElementById('df-eid').value
+  const amt=parseFloat(document.getElementById('df-amt').value)
+  const who=document.getElementById('df-who').value
+  const note=document.getElementById('df-note').value.trim()
+  const date=document.getElementById('df-date').value||tod()
+  if(!amt||amt<=0){showErr('df-err','Enter a valid amount');return}
+  if(!S.dateBudget.funds)S.dateBudget.funds=[]
+  if(eid){
+    // Edit existing
+    const idx=S.dateBudget.funds.findIndex(f=>f.id===eid)
+    if(idx>-1)S.dateBudget.funds[idx]={...S.dateBudget.funds[idx],amt,who,note,date}
+    if(SB_READY&&AU_SB_ID)await _sb.from('date_budget_funds').update({amount:amt,funded_by:who,note,fund_date:date}).eq('id',eid)
+    toast('Fund entry updated ✏️')
+  } else {
+    const newId=uid()
+    if(SB_READY&&AU_SB_ID){
+      const {data,error}=await _sb.from('date_budget_funds').insert({id:newId,amount:amt,funded_by:who,note,fund_date:date}).select().single()
+      if(error){showErr('df-err','Failed to save. Check DB setup.');return}
+    }
+    S.dateBudget.funds.unshift({id:newId,amt,who,note,date})
+    toast(`${P(amt)} added to date fund! 💰`)
+  }
+  cm('m-dateFund');renderDateBudget()
+}
+
+async function saveDateCat(e){
+  CP(e)
+  const eid=document.getElementById('dc-eid').value
+  const name=document.getElementById('dc-name').value.trim()
+  const icon=document.getElementById('dc-icon').value.trim()||'💕'
+  const limit=parseFloat(document.getElementById('dc-limit').value)||0
+  const color=document.getElementById('dc-color').value||'#e91e8c'
+  if(!name){showErr('dc-err','Enter a category name');return}
+  if(!S.dateBudget.cats)S.dateBudget.cats=[]
+  if(eid){
+    const idx=S.dateBudget.cats.findIndex(c=>c.id===eid)
+    if(idx>-1)S.dateBudget.cats[idx]={...S.dateBudget.cats[idx],name,icon,limit,color}
+    if(SB_READY&&AU_SB_ID)await _sb.from('date_budget_categories').update({name,icon,limit_amount:limit,color}).eq('id',eid)
+    toast('Category updated ✏️')
+  } else {
+    const newId=uid()
+    if(SB_READY&&AU_SB_ID){
+      const {data,error}=await _sb.from('date_budget_categories').insert({id:newId,name,icon,limit_amount:limit,color}).select().single()
+      if(error){showErr('dc-err','Failed to save. Check DB setup.');return}
+    }
+    S.dateBudget.cats.push({id:newId,name,icon,limit,color})
+    toast(`Category "${name}" added! 🏷️`)
+  }
+  cm('m-dateCat');renderDateBudget()
+}
+
+async function saveDateExp(e){
+  CP(e)
+  const eid=document.getElementById('de-eid').value
+  const desc=document.getElementById('de-desc').value.trim()
+  const amt=parseFloat(document.getElementById('de-amt').value)
+  const catId=document.getElementById('de-cat').value
+  const who=document.getElementById('de-who').value
+  const date=document.getElementById('de-date').value||tod()
+  const note=document.getElementById('de-note').value.trim()
+  if(!desc){showErr('de-err','Enter a description');return}
+  if(!amt||amt<=0){showErr('de-err','Enter a valid amount');return}
+  if(!S.dateBudget.expenses)S.dateBudget.expenses=[]
+  if(eid){
+    const idx=S.dateBudget.expenses.findIndex(x=>x.id===eid)
+    if(idx>-1)S.dateBudget.expenses[idx]={...S.dateBudget.expenses[idx],desc,amt,catId,who,date,note}
+    if(SB_READY&&AU_SB_ID)await _sb.from('date_budget_expenses').update({description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note}).eq('id',eid)
+    toast('Expense updated ✏️')
+  } else {
+    const newId=uid()
+    if(SB_READY&&AU_SB_ID){
+      const {data,error}=await _sb.from('date_budget_expenses').insert({id:newId,description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note}).select().single()
+      if(error){showErr('de-err','Failed to save. Check DB setup.');return}
+    }
+    S.dateBudget.expenses.unshift({id:newId,desc,amt,catId,who,date,note})
+    toast(`"${desc}" added! 💕`)
+  }
+  cm('m-dateExp');renderDateBudget()
+}
+
+async function delDateCat(cid){
+  if(SB_READY&&AU_SB_ID)await _sb.from('date_budget_categories').delete().eq('id',cid)
+  S.dateBudget.cats=(S.dateBudget.cats||[]).filter(c=>c.id!==cid)
+  toast('Category deleted 🗑️');renderDateBudget()
+}
+async function delDateExp(eid){
+  if(SB_READY&&AU_SB_ID)await _sb.from('date_budget_expenses').delete().eq('id',eid)
+  S.dateBudget.expenses=(S.dateBudget.expenses||[]).filter(e=>e.id!==eid)
+  toast('Expense removed 🗑️');renderDateBudget()
+}
+async function delDateFund(fid){
+  if(SB_READY&&AU_SB_ID)await _sb.from('date_budget_funds').delete().eq('id',fid)
+  S.dateBudget.funds=(S.dateBudget.funds||[]).filter(f=>f.id!==fid)
+  toast('Fund entry removed 🗑️');renderDateBudget()
+}
+
+// ─── Load date budget from Supabase ──────────────────────
+async function loadDateBudgetFromSB(){
+  if(!SB_READY||!AU_SB_ID)return
+  try{
+    const [catsRes,expsRes,fundsRes]=await Promise.all([
+      _sb.from('date_budget_categories').select('*').order('created_at'),
+      _sb.from('date_budget_expenses').select('*').order('expense_date',{ascending:false}),
+      _sb.from('date_budget_funds').select('*').order('fund_date',{ascending:false})
+    ])
+    S.dateBudget.cats=(catsRes.data||[]).map(c=>({id:c.id,name:c.name,icon:c.icon||'💕',limit:parseFloat(c.limit_amount)||0,color:c.color||'#e91e8c'}))
+    S.dateBudget.expenses=(expsRes.data||[]).map(e=>({id:e.id,desc:e.description,amt:parseFloat(e.amount)||0,catId:e.category_id||'dbc-other',who:e.paid_by||'u1',date:e.expense_date,note:e.note||''}))
+    S.dateBudget.funds=(fundsRes.data||[]).map(f=>({id:f.id,amt:parseFloat(f.amount)||0,who:f.funded_by||'u1',note:f.note||'',date:f.fund_date}))
+  }catch(err){console.warn('Date budget load error:',err)}
+}
 
 // ─── CATEGORIES ───────────────────────────────────────────
 function openEditCat(e,cid){
@@ -3462,11 +3979,27 @@ function setAcctTxnType(t){
   document.getElementById('acct-txn-expense').className=t==='expense'?'btn btn-p':'btn btn-g'
 }
 
+function toggleAcctCustomType(){
+  const sel=document.getElementById('acct-type')
+  const isOther=sel?.value==='💼 Others'
+  const wrap=document.getElementById('acct-custom-wrap')
+  if(wrap)wrap.style.display=isOther?'block':'none'
+}
+function getAcctType(){
+  const sel=document.getElementById('acct-type')
+  if(sel?.value==='💼 Others'){
+    const emoji=document.getElementById('acct-custom-emoji')?.value.trim()||'💼'
+    const name=document.getElementById('acct-custom-name')?.value.trim()||'Custom'
+    return `${emoji} ${name}`
+  }
+  return sel?.value||'💵 Cash'
+}
 function openAddAccount(){
   document.getElementById('acct-eid').value=''
   document.getElementById('acct-name').value=''
   document.getElementById('acct-balance').value='0'
   document.getElementById('acct-type').value='💵 Cash'
+  const cwrap=document.getElementById('acct-custom-wrap');if(cwrap)cwrap.style.display='none'
   const errEl=document.getElementById('acct-err');if(errEl)errEl.style.display='none'
   const sb=document.getElementById('acct-save-btn');if(sb)sb.textContent='Create'
   document.querySelector('#m-addAccount .mtitle').textContent='🏧 New Account'
@@ -3478,7 +4011,22 @@ function openEditAccount(aid){
   document.getElementById('acct-eid').value=aid
   document.getElementById('acct-name').value=a.name
   document.getElementById('acct-balance').value=a.openingBalance||0
-  document.getElementById('acct-type').value=a.type
+  // Handle custom type in select
+  const typeEl=document.getElementById('acct-type')
+  const stdTypes=['💵 Cash','📱 GCash','🏦 Bank','💳 E-Wallet','🚨 Emergency Fund','🎯 Savings','🐷 Piggy Bank','₿ Crypto Wallet','✈️ Travel Money','💼 Others']
+  if(stdTypes.includes(a.type)){
+    typeEl.value=a.type
+    const cwrap=document.getElementById('acct-custom-wrap');if(cwrap)cwrap.style.display='none'
+  } else {
+    typeEl.value='💼 Others'
+    // Parse emoji and name from stored type
+    const parts=a.type.split(' ')
+    const emojiEl=document.getElementById('acct-custom-emoji')
+    const nameEl=document.getElementById('acct-custom-name')
+    if(emojiEl)emojiEl.value=parts[0]||'💼'
+    if(nameEl)nameEl.value=parts.slice(1).join(' ')||''
+    const cwrap=document.getElementById('acct-custom-wrap');if(cwrap)cwrap.style.display='block'
+  }
   const sb=document.getElementById('acct-save-btn');if(sb)sb.textContent='Save Changes'
   document.querySelector('#m-addAccount .mtitle').textContent='✏️ Edit Account'
   document.getElementById('m-addAccount').style.display='flex'
@@ -3488,7 +4036,7 @@ async function saveAccount(e){
   CP(e)
   const eid=document.getElementById('acct-eid')?.value
   const name=document.getElementById('acct-name').value.trim()
-  const type=document.getElementById('acct-type').value
+  const type=getAcctType()
   const openingBal=parseFloat(document.getElementById('acct-balance').value)||0
   if(!name){showErr('acct-err','Account name is required');return}
   if(eid){
@@ -3570,7 +4118,7 @@ function renderAccounts(){
   },0)
 
   el.innerHTML=`
-    <div class="wallet-hero" style="background:linear-gradient(135deg,#007aff,#5856d6)">
+    <div class="wallet-hero" style="background:linear-gradient(135deg,var(--pink),var(--purple))">
       <div class="wallet-label">Total Across All Accounts</div>
       <div class="wallet-bal">${P(grandTotal)}</div>
       <div class="wallet-sub"><span>📂 ${accounts.length} account${accounts.length!==1?'s':''}</span></div>
@@ -3590,9 +4138,9 @@ function renderAccounts(){
                 <div style="font-size:11px;color:var(--txt3);margin-top:2px">Balance: <strong style="color:${bal>=0?'#34c759':'#ff3b30'};font-size:14px">${P(bal)}</strong> &nbsp;·&nbsp; 💚 ${P((a.openingBalance||0)+inc)} in &nbsp;·&nbsp; ❤️ ${P(exp)} out</div>
               </div>
               <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-                <button class="btn btn-p btn-xs" onclick="openAddAcctTxn('${a.id}','income')">💚 In</button>
-                <button class="btn btn-xs" style="background:rgba(255,59,48,.12);color:#ff3b30;border-color:rgba(255,59,48,.25)" onclick="openAddAcctTxn('${a.id}','expense')">❤️ Out</button>
-                <button class="btn btn-xs btn-o" onclick="openEditAccount('${a.id}')">✏️</button>
+                <button class="btn btn-p btn-xs" onclick="openAddAcctTxn('${a.id}','income')" style="background:linear-gradient(135deg,var(--teal),#27ae60);border:none">💚 Income</button>
+                <button class="btn btn-xs btn-d" onclick="openAddAcctTxn('${a.id}','expense')" style="background:rgba(231,76,60,.1);color:var(--danger);border-color:rgba(231,76,60,.3)">❤️ Expense</button>
+                <button class="btn btn-xs btn-o" onclick="openEditAccount('${a.id}')">✏️ Edit</button>
                 <button class="btn btn-xs btn-d" onclick="deleteAccount('${a.id}')">🗑️</button>
               </div>
             </div>
@@ -3867,12 +4415,13 @@ async function afterSignIn(){
   }
   updateSBAv()
   await loadAllDataFromSB()
+  await loadDateBudgetFromSB()
   updateSBAv()
 }
 
 function resetLocalData(){
   S.budgets={u1:[],u2:[]}; S.expenses={u1:[],u2:[]}; S.insts={u1:[],u2:[]}
-  S.instPays=[]; S.goals=[]; S.todos=[]; S.wishlist={u1:[],u2:[]}; S.schedule={u1:[],u2:[]}; S.accounts=[]; S.walletSubs=[]; S.savingsCats={u1:[],u2:[]}
+  S.instPays=[]; S.goals=[]; S.dateBudget={cats:[],expenses:[],funds:[]}; S.todos=[]; S.wishlist={u1:[],u2:[]}; S.schedule={u1:[],u2:[]}; S.accounts=[]; S.walletSubs=[]; S.savingsCats={u1:[],u2:[]}
 }
 
 // Wraps a Supabase call so it always resolves (never rejects):
