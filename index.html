@@ -3094,9 +3094,15 @@ function dbTotal(){return(S.dateBudget.funds||[]).reduce((a,f)=>a+(f.amt||0),0)}
 function dbSpent(){return(S.dateBudget.expenses||[]).reduce((a,e)=>a+(e.amt||0),0)}
 function dbRemaining(){return Math.max(0,dbTotal()-dbSpent())}
 function dbCats(){
-  const base=DB_DEFAULT_CATS.map(c=>({...c}))
-  const custom=S.dateBudget.cats||[]
-  return [...base,...custom]
+  const overrides={}
+  ;(S.dateBudget.cats||[]).forEach(c=>{overrides[c.id]=c})
+  const hidden=S.dateBudget.hiddenCats||[]
+  // Merge: default cats get overridden by saved edits, hidden ones excluded
+  const merged=DB_DEFAULT_CATS
+    .filter(c=>!hidden.includes(c.id))
+    .map(c=>overrides[c.id]?{...c,...overrides[c.id]}:c)
+  const customOnly=(S.dateBudget.cats||[]).filter(c=>!c.id.startsWith('dbc-'))
+  return [...merged,...customOnly]
 }
 function dbCatSpent(catId){return(S.dateBudget.expenses||[]).filter(e=>e.catId===catId).reduce((a,e)=>a+(e.amt||0),0)}
 
@@ -3156,8 +3162,9 @@ function renderDateBudget(){
         </div>
         ${lim>0?`<div class="pw" style="height:8px;margin:8px 0"><div class="pf" style="width:${pp}%;background:linear-gradient(90deg,${cat.color}88,${cat.color})"></div></div><div class="pmeta"><span>${P(cs)} spent</span><span>Limit: ${P(lim)}</span></div>`:''}
         <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
-          <button class="btn btn-sm" style="background:${cat.color};color:#fff;border-color:transparent;font-size:12px" onclick="openDateExp(event,'${cat.id}')">+ Expense</button>
-          <button class="btn btn-xs btn-g" onclick="openDateCatEdit(event,'${cat.id}')">✏️ Edit Limit</button>${!isDefault?`<button class="btn btn-xs btn-d" onclick="delConfirm('🗑️ Delete Category','Delete &ldquo;${esc(cat.name)}&rdquo; and its expenses? This cannot be undone.',()=>delDateCat('${cat.id}'))">🗑️</button>`:``}
+          <button class="btn btn-sm" style="background:${cat.color};color:#fff;border-color:transparent;font-size:12px" onclick="event.stopPropagation();openDateExpById('${cat.id}')">+ Expense</button>
+          <button class="btn btn-xs btn-g" onclick="event.stopPropagation();openDateCatById('${cat.id}')">✏️ Edit</button>
+          <button class="btn btn-xs btn-d" onclick="event.stopPropagation();confirmDelDateCat('${cat.id}','${esc(cat.name)}')">🗑️ Delete</button>
         </div>
       </div>`
     }).join('')+`</div>
@@ -3261,7 +3268,7 @@ function openDateCat(e){
   document.getElementById('m-dateCat').style.display='flex'
 }
 function openDateCatEdit(e,cid){
-  CP(e)
+  if(e)CP(e)
   // Check custom cats first, then fall back to defaults
   const cat=(S.dateBudget.cats||[]).find(c=>c.id===cid)||DB_DEFAULT_CATS.find(c=>c.id===cid)
   if(!cat)return
@@ -3274,8 +3281,14 @@ function openDateCatEdit(e,cid){
   document.getElementById('dc-title').textContent='✏️ Edit Category'
   document.getElementById('m-dateCat').style.display='flex'
 }
+// Safe wrappers — called from onclick without event conflicts
+function openDateExpById(catId){openDateExp(null,catId)}
+function openDateCatById(catId){openDateCatEdit(null,catId)}
+function confirmDelDateCat(cid,name){
+  delConfirm('🗑️ Delete Category','Delete "'+name+'" and its expenses? This cannot be undone.',()=>delDateCat(cid))
+}
 function openDateExp(e,catId){
-  CP(e)
+  if(e)CP(e)
   document.getElementById('de-eid').value=''
   document.getElementById('de-desc').value=''
   document.getElementById('de-amt').value=''
@@ -3400,10 +3413,15 @@ async function saveDateExp(e){
 
 async function delDateCat(cid){
   const isDefault=cid.startsWith('dbc-')
-  if(!isDefault&&SB_READY&&AU_SB_ID)await _sb.from('date_budget_categories').delete().eq('id',cid).catch(()=>{})
-  // Remove from custom/override list
-  S.dateBudget.cats=(S.dateBudget.cats||[]).filter(c=>c.id!==cid)
-  toast('Category deleted 🗑️');renderDateBudget()
+  if(isDefault){
+    // Hide default cat by tracking it in hiddenCats
+    if(!S.dateBudget.hiddenCats)S.dateBudget.hiddenCats=[]
+    if(!S.dateBudget.hiddenCats.includes(cid))S.dateBudget.hiddenCats.push(cid)
+  } else {
+    if(SB_READY&&AU_SB_ID)await _sb.from('date_budget_categories').delete().eq('id',cid).catch(()=>{})
+    S.dateBudget.cats=(S.dateBudget.cats||[]).filter(c=>c.id!==cid)
+  }
+  toast('Category removed 🗑️');renderDateBudget()
 }
 async function delDateExp(eid){
   if(SB_READY&&AU_SB_ID)await _sb.from('date_budget_expenses').delete().eq('id',eid).catch(()=>{})
