@@ -1733,7 +1733,9 @@ let S={
   todos:[],
   _ctx:null,_piUid:null,_piIid:null,
   _histPage:0,_ipPage:0,_todoFilter:'all',_calDate:new Date(),
-  _todoUser:'mine',_schedUser:'mine',_wishUser:'mine'
+  _todoUser:'mine',_schedUser:'mine',_wishUser:'mine',
+  // MONTHLY DATE BUDGET
+  dateBudget:{cats:[],expenses:[],funds:[],hiddenCats:[]}
 }
 
 // ─── GETTERS ─────────────────────────────────────────────
@@ -3323,7 +3325,7 @@ function openDateExpEdit(e,eid){
 }
 
 // ─── Date Budget: SAVE / DELETE CRUD ─────────────────────
-async function saveDateFund(e){
+function saveDateFund(e){
   CP(e)
   const eid=document.getElementById('df-eid').value
   const amt=parseFloat(document.getElementById('df-amt').value)
@@ -3331,17 +3333,18 @@ async function saveDateFund(e){
   const note=document.getElementById('df-note').value.trim()
   const date=document.getElementById('df-date').value||tod()
   if(!amt||amt<=0){showErr('df-err','Enter a valid amount');return}
+  if(!S.dateBudget)S.dateBudget={cats:[],expenses:[],funds:[],hiddenCats:[]}
   if(!S.dateBudget.funds)S.dateBudget.funds=[]
   if(eid){
     // Edit existing
     const idx=S.dateBudget.funds.findIndex(f=>f.id===eid)
     if(idx>-1)S.dateBudget.funds[idx]={...S.dateBudget.funds[idx],amt,who,note,date}
-    if(SB_READY&&AU_SB_ID)await _sb.from('date_budget_funds').update({amount:amt,funded_by:who,note,fund_date:date}).eq('id',eid)
+    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_funds').update({amount:amt,funded_by:who,note,fund_date:date}).eq('id',eid).catch(()=>{})
     toast('Fund entry updated ✏️')
   } else {
     const newId=uid()
     if(SB_READY&&AU_SB_ID){
-      await _sb.from('date_budget_funds').insert({id:newId,amount:amt,funded_by:who,note,fund_date:date}).catch(()=>{})
+      _sb.from('date_budget_funds').insert({id:newId,amount:amt,funded_by:who,note,fund_date:date}).catch(()=>{})
     }
     S.dateBudget.funds.unshift({id:newId,amt,who,note,date})
     toast(`${P(amt)} added to date fund! 💰`)
@@ -3349,7 +3352,7 @@ async function saveDateFund(e){
   cm('m-dateFund');renderDateBudget()
 }
 
-async function saveDateCat(e){
+function saveDateCat(e){
   CP(e)
   const eid=document.getElementById('dc-eid').value
   const name=document.getElementById('dc-name').value.trim()
@@ -3357,33 +3360,30 @@ async function saveDateCat(e){
   const limit=parseFloat(document.getElementById('dc-limit').value)||0
   const color=document.getElementById('dc-color').value||'#e91e8c'
   if(!name){showErr('dc-err','Enter a category name');return}
+  if(!S.dateBudget)S.dateBudget={cats:[],expenses:[],funds:[],hiddenCats:[]}
   if(!S.dateBudget.cats)S.dateBudget.cats=[]
   if(eid){
     const isDefault=eid.startsWith('dbc-')
     if(isDefault){
-      // Edit a default category — store override in memory only
       const existing=S.dateBudget.cats.find(c=>c.id===eid)
       if(existing){Object.assign(existing,{name,icon,limit,color})}
       else{S.dateBudget.cats.push({id:eid,name,icon,limit,color})}
-      toast('Category updated ✏️')
     } else {
       const idx=S.dateBudget.cats.findIndex(c=>c.id===eid)
       if(idx>-1)S.dateBudget.cats[idx]={...S.dateBudget.cats[idx],name,icon,limit,color}
-      if(SB_READY&&AU_SB_ID)await _sb.from('date_budget_categories').update({name,icon,limit_amount:limit,color}).eq('id',eid).catch(()=>{})
-      toast('Category updated ✏️')
+      if(SB_READY&&AU_SB_ID)_sb.from('date_budget_categories').update({name,icon,limit_amount:limit,color}).eq('id',eid).catch(()=>{})
     }
+    toast('Category updated ✏️')
   } else {
     const newId=uid()
-    if(SB_READY&&AU_SB_ID){
-      await _sb.from('date_budget_categories').insert({id:newId,name,icon,limit_amount:limit,color}).catch(()=>{})
-    }
     S.dateBudget.cats.push({id:newId,name,icon,limit,color})
+    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_categories').insert({id:newId,name,icon,limit_amount:limit,color}).catch(()=>{})
     toast(`Category "${name}" added! 🏷️`)
   }
   cm('m-dateCat');renderDateBudget()
 }
 
-async function saveDateExp(e){
+function saveDateExp(e){
   CP(e)
   const eid=document.getElementById('de-eid').value
   const desc=document.getElementById('de-desc').value.trim()
@@ -3394,19 +3394,18 @@ async function saveDateExp(e){
   const note=document.getElementById('de-note').value.trim()
   if(!desc){showErr('de-err','Enter a description');return}
   if(!amt||amt<=0){showErr('de-err','Enter a valid amount');return}
+  if(!S.dateBudget)S.dateBudget={cats:[],expenses:[],funds:[],hiddenCats:[]}
   if(!S.dateBudget.expenses)S.dateBudget.expenses=[]
   if(eid){
     const idx=S.dateBudget.expenses.findIndex(x=>x.id===eid)
     if(idx>-1)S.dateBudget.expenses[idx]={...S.dateBudget.expenses[idx],desc,amt,catId,who,date,note}
-    if(SB_READY&&AU_SB_ID)await _sb.from('date_budget_expenses').update({description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note}).eq('id',eid)
+    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_expenses').update({description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note}).eq('id',eid).catch(()=>{})
     toast('Expense updated ✏️')
   } else {
     const newId=uid()
-    if(SB_READY&&AU_SB_ID){
-      await _sb.from('date_budget_expenses').insert({id:newId,description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note}).catch(()=>{})
-    }
     S.dateBudget.expenses.unshift({id:newId,desc,amt,catId,who,date,note})
-    toast(`"${desc}" added! 💕`)
+    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_expenses').insert({id:newId,description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note}).catch(()=>{})
+    toast('"'+desc+'" added! 💕')
   }
   cm('m-dateExp');renderDateBudget()
 }
