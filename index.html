@@ -92,6 +92,16 @@ input,select,textarea,button{font-family:inherit}
   -webkit-text-fill-color:transparent;
   background-clip:text;
 }
+.cat-color-swatch{
+  display:inline-block;width:28px;height:28px;border-radius:50%;
+  cursor:pointer;border:3px solid transparent;
+  transition:transform .15s,border-color .15s;flex-shrink:0;
+}
+.cat-color-swatch:hover{transform:scale(1.15)}
+.cat-color-swatch.active{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.5),0 2px 8px rgba(0,0,0,.3);transform:scale(1.12)}
+.color-swatch-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
+.custom-color-pick{width:32px;height:28px;border:none;border-radius:8px;cursor:pointer;padding:0;background:none}
+
 .pulse-dot{position:absolute;bottom:0;right:0;width:9px;height:9px;border-radius:50%;background:var(--teal);border:2px solid var(--bg2)}
 .uinfo{flex:1;min-width:0;overflow:hidden;transition:opacity .2s}
 .sidebar.col .uinfo{opacity:0;width:0}
@@ -939,12 +949,20 @@ tbody tr:hover td{background:var(--bg3)}
     <div class="frow">
       <div class="fg"><label>Icon</label><input id="savcat-icon" placeholder="🎯" maxlength="4" value="🎯"/></div>
       <div class="fg"><label>Color</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px" id="savcat-colors">
-          <span class="cat-color-swatch active" data-color="#d4537e" style="background:#d4537e" onclick="selectSavCatColor('#d4537e',this)"></span>
-          <span class="cat-color-swatch" data-color="#007aff" style="background:#007aff" onclick="selectSavCatColor('#007aff',this)"></span>
-          <span class="cat-color-swatch" data-color="#34c759" style="background:#34c759" onclick="selectSavCatColor('#34c759',this)"></span>
-          <span class="cat-color-swatch" data-color="#ff9500" style="background:#ff9500" onclick="selectSavCatColor('#ff9500',this)"></span>
-          <span class="cat-color-swatch" data-color="#af52de" style="background:#af52de" onclick="selectSavCatColor('#af52de',this)"></span>
+        <div class="color-swatch-row" id="savcat-colors">
+          <span class="cat-color-swatch active" data-color="#d4537e" style="background:#d4537e" onclick="selectSavCatColor('#d4537e',this)" title="Pink"></span>
+          <span class="cat-color-swatch" data-color="#e91e8c" style="background:#e91e8c" onclick="selectSavCatColor('#e91e8c',this)" title="Hot Pink"></span>
+          <span class="cat-color-swatch" data-color="#007aff" style="background:#007aff" onclick="selectSavCatColor('#007aff',this)" title="Blue"></span>
+          <span class="cat-color-swatch" data-color="#34c759" style="background:#34c759" onclick="selectSavCatColor('#34c759',this)" title="Green"></span>
+          <span class="cat-color-swatch" data-color="#ff9500" style="background:#ff9500" onclick="selectSavCatColor('#ff9500',this)" title="Orange"></span>
+          <span class="cat-color-swatch" data-color="#af52de" style="background:#af52de" onclick="selectSavCatColor('#af52de',this)" title="Purple"></span>
+          <span class="cat-color-swatch" data-color="#ff3b30" style="background:#ff3b30" onclick="selectSavCatColor('#ff3b30',this)" title="Red"></span>
+          <span class="cat-color-swatch" data-color="#5ac8fa" style="background:#5ac8fa" onclick="selectSavCatColor('#5ac8fa',this)" title="Sky Blue"></span>
+          <span class="cat-color-swatch" data-color="#ffcc00" style="background:#ffcc00" onclick="selectSavCatColor('#ffcc00',this)" title="Yellow"></span>
+          <span class="cat-color-swatch" data-color="#3aaa7e" style="background:#3aaa7e" onclick="selectSavCatColor('#3aaa7e',this)" title="Teal"></span>
+          <span class="cat-color-swatch" data-color="#795548" style="background:#795548" onclick="selectSavCatColor('#795548',this)" title="Brown"></span>
+          <span class="cat-color-swatch" data-color="#607d8b" style="background:#607d8b" onclick="selectSavCatColor('#607d8b',this)" title="Grey"></span>
+          <input type="color" class="custom-color-pick" id="savcat-custom-color" title="Custom color" value="#d4537e" oninput="selectSavCatColorCustom(this.value)"/>
         </div>
       </div>
     </div>
@@ -3857,6 +3875,13 @@ function selectSavCatColor(c,el){
   _savCatColor=c
   document.querySelectorAll('#savcat-colors .cat-color-swatch').forEach(s=>s.classList.remove('active'))
   if(el)el.classList.add('active')
+  const cp=document.getElementById('savcat-custom-color');if(cp)cp.style.outline='none'
+}
+function selectSavCatColorCustom(color){
+  _savCatColor=color
+  document.querySelectorAll('#savcat-colors .cat-color-swatch').forEach(s=>s.classList.remove('active'))
+  const cp=document.getElementById('savcat-custom-color')
+  if(cp)cp.style.outline='3px solid #fff'
 }
 function setSavEntryType(t){
   _savEntryType=t
@@ -3869,6 +3894,8 @@ function openAddSavCat(scope){
   document.getElementById('savcat-icon').value='🎯'
   _savCatColor='#d4537e'
   document.querySelectorAll('#savcat-colors .cat-color-swatch').forEach((s,i)=>s.classList.toggle('active',i===0))
+  const cp=document.getElementById('savcat-custom-color');if(cp){cp.value='#d4537e';cp.style.outline='none'}
+  const cont=document.getElementById('savcat-colors');if(cont)cont.dataset.customColor=''
   const errEl=document.getElementById('savcat-err');if(errEl)errEl.style.display='none'
   document.getElementById('m-addSavCat').style.display='flex'
 }
