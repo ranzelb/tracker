@@ -3130,12 +3130,10 @@ function renderDateBudget(){
   const total=dbTotal(),spent=dbSpent(),rem=dbRemaining()
   const cats=dbCats()
   const u1Name=USERS.u1.name,u2Name=USERS.u2.name
-  const u1Funds=(S.dateBudget.funds||[]).filter(f=>f.who==='u1').reduce((a,f)=>a+f.amt,0)
-  const u2Funds=(S.dateBudget.funds||[]).filter(f=>f.who==='u2').reduce((a,f)=>a+f.amt,0)
-  const bothFunds=(S.dateBudget.funds||[]).filter(f=>f.who==='both').reduce((a,f)=>a+f.amt,0)
 
   // Stats
-  document.getElementById('db-stats').innerHTML=`
+  const statsEl=document.getElementById('db-stats')
+  if(statsEl) statsEl.innerHTML=`
     <div class="sc" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0);border:1.5px solid #f48fb1">
       <div class="sc-ico">💰</div><div class="sc-lbl" style="color:#880e4f">Total Funds</div>
       <div class="sc-val" style="color:#c2185b">${P(total)}</div>
@@ -3158,15 +3156,16 @@ function renderDateBudget(){
     </div>
   `
 
-  // Category cards
+  // Category cards — use data attributes, attach listeners after render
   const catList=document.getElementById('db-cats-list')
-  catList.innerHTML=`<div style="display:flex;flex-direction:column;gap:10px">`+
-    cats.map(cat=>{
+  if(catList){
+    let catsHtml='<div style="display:flex;flex-direction:column;gap:10px">'
+    cats.forEach(cat=>{
       const cs=dbCatSpent(cat.id)
       const lim=cat.limit||0
       const pp=lim>0?Math.min(100,Math.round(cs/lim*100)):0
-      const isDefault=cat.id.startsWith('dbc-')
-      return`<div class="goal-card" style="border-left:4px solid ${cat.color};padding:14px 16px">
+      const progressBar=lim>0?`<div class="pw" style="height:8px;margin:8px 0"><div class="pf" style="width:${pp}%;background:linear-gradient(90deg,${cat.color}88,${cat.color})"></div></div><div class="pmeta"><span>${P(cs)} spent</span><span>Limit: ${P(lim)}</span></div>`:''
+      catsHtml+=`<div class="goal-card db-cat-card" data-catid="${cat.id}" style="border-left:4px solid ${cat.color};padding:14px 16px">
         <div class="goal-hd">
           <div style="display:flex;align-items:center;gap:10px">
             <div class="goal-icon" style="background:${cat.color}22;border:1.5px solid ${cat.color}44;font-size:20px">${cat.icon}</div>
@@ -3180,27 +3179,52 @@ function renderDateBudget(){
             <div style="font-size:10px;color:var(--txt3)">spent</div>
           </div>
         </div>
-        ${lim>0?`<div class="pw" style="height:8px;margin:8px 0"><div class="pf" style="width:${pp}%;background:linear-gradient(90deg,${cat.color}88,${cat.color})"></div></div><div class="pmeta"><span>${P(cs)} spent</span><span>Limit: ${P(lim)}</span></div>`:''}
+        ${progressBar}
         <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
-          <button class="btn btn-sm" style="background:${cat.color};color:#fff;border-color:transparent;font-size:12px" onclick="event.stopPropagation();openDateExpById('${cat.id}')">+ Expense</button>
-          <button class="btn btn-xs btn-g" onclick="event.stopPropagation();openDateCatById('${cat.id}')">✏️ Edit</button>
-          <button class="btn btn-xs btn-d" onclick="event.stopPropagation();confirmDelDateCat('${cat.id}','${esc(cat.name)}')">🗑️ Delete</button>
+          <button class="btn btn-sm db-add-exp" data-catid="${cat.id}" style="background:${cat.color};color:#fff;border-color:transparent;font-size:12px">+ Expense</button>
+          <button class="btn btn-xs btn-g db-edit-cat" data-catid="${cat.id}">✏️ Edit</button>
+          <button class="btn btn-xs btn-d db-del-cat" data-catid="${cat.id}">🗑️ Delete</button>
         </div>
       </div>`
-    }).join('')+`</div>
-    <button class="btn btn-p" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" onclick="openDateCat(event)">+ Add Custom Category</button>`
+    })
+    catsHtml+='</div><button class="btn btn-p db-add-cat-btn" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#e91e8c,#c2185b);border:none">+ Add Custom Category</button>'
+    catList.innerHTML=catsHtml
+
+    // Attach event listeners (safe — no inline JS eval)
+    catList.querySelectorAll('.db-add-exp').forEach(btn=>{
+      btn.addEventListener('click',function(ev){ev.stopPropagation();openDateExpById(this.dataset.catid)})
+    })
+    catList.querySelectorAll('.db-edit-cat').forEach(btn=>{
+      btn.addEventListener('click',function(ev){ev.stopPropagation();openDateCatById(this.dataset.catid)})
+    })
+    catList.querySelectorAll('.db-del-cat').forEach(btn=>{
+      btn.addEventListener('click',function(ev){
+        ev.stopPropagation()
+        const cid=this.dataset.catid
+        const cat=dbCats().find(c=>c.id===cid)
+        const name=cat?cat.name:'this category'
+        delConfirm('🗑️ Delete Category','Delete "'+name+'"? This cannot be undone.',()=>delDateCat(cid))
+      })
+    })
+    const addCatBtn=catList.querySelector('.db-add-cat-btn')
+    if(addCatBtn)addCatBtn.addEventListener('click',function(ev){openDateCat(ev)})
+  }
 
   // Pie chart
   const cc=CC()
   const pieData=cats.map(c=>({c,amt:dbCatSpent(c.id)})).filter(x=>x.amt>0)
   if(pieData.length>0){
-    mkChart('dbPie',{type:'doughnut',data:{datasets:[{data:pieData.map(x=>x.amt),backgroundColor:pieData.map(x=>x.c.color+'cc'),borderWidth:2,borderColor:cc.bg2,hoverOffset:8}],labels:pieData.map(x=>`${x.c.icon} ${x.c.name}`)},options:{...dOpts(cc),plugins:{...dOpts(cc).plugins,legend:{display:true,position:'right',labels:{color:cc.txt2,font:{family:'DM Sans',size:11},usePointStyle:true,boxWidth:10,padding:10}}}}})
+    try{mkChart('dbPie',{type:'doughnut',data:{datasets:[{data:pieData.map(x=>x.amt),backgroundColor:pieData.map(x=>x.c.color+'cc'),borderWidth:2,borderColor:cc.bg2,hoverOffset:8}],labels:pieData.map(x=>x.c.icon+' '+x.c.name)},options:{...dOpts(cc),plugins:{...dOpts(cc).plugins,legend:{display:true,position:'right',labels:{color:cc.txt2,font:{family:'DM Sans',size:11},usePointStyle:true,boxWidth:10,padding:10}}}}})}catch(err){}
   } else {
-    const cv=document.getElementById('dbPie');if(cv){const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height)}
+    try{const cv=document.getElementById('dbPie');if(cv){const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height)}}catch(err){}
   }
 
-  // Contribution split (who funded how much)
-  document.getElementById('dbContribSplit').innerHTML=`
+  // Funding split
+  const u1Funds=(S.dateBudget.funds||[]).filter(f=>f.who==='u1').reduce((a,f)=>a+f.amt,0)
+  const u2Funds=(S.dateBudget.funds||[]).filter(f=>f.who==='u2').reduce((a,f)=>a+f.amt,0)
+  const bothFunds=(S.dateBudget.funds||[]).filter(f=>f.who==='both').reduce((a,f)=>a+f.amt,0)
+  const splitEl=document.getElementById('dbContribSplit')
+  if(splitEl) splitEl.innerHTML=`
     <div style="margin-top:10px;padding-top:10px;border-top:1.5px solid var(--border)">
       <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--pink)">💑 Funding Split</div>
       ${[{uid:'u1',name:u1Name,av:USERS.u1.avatar,total:u1Funds+bothFunds*0.5},{uid:'u2',name:u2Name,av:USERS.u2.avatar,total:u2Funds+bothFunds*0.5}].map(r=>`
@@ -3216,51 +3240,83 @@ function renderDateBudget(){
 
   // Expense history
   const exps=(S.dateBudget.expenses||[]).slice().sort((a,b)=>new Date(b.date)-new Date(a.date))
-  document.getElementById('db-exp-cnt').textContent=exps.length+' entries'
-  document.getElementById('db-exp-list').innerHTML=exps.length===0
-    ?'<div class="empty"><div class="empty-ico">🍽️</div><p>No date expenses yet<br><span style="font-size:12px;color:var(--txt3)">Add your first date expense above ↑</span></p></div>'
-    :exps.map(e=>{
-      const cat=dbCats().find(c=>c.id===e.catId)||{icon:'💕',name:'Other',color:'#f06292'}
-      const whoLabel=e.who==='both'?'Both 💑':e.who==='u1'?USERS.u1.name:USERS.u2.name
-      return`<div class="row">
-        <div class="rico" style="background:${cat.color}22;font-size:18px">${cat.icon}</div>
-        <div class="rinfo">
-          <div class="rname">${esc(e.desc)}</div>
-          <div class="rsub">${fmtD(e.date)} · ${esc(cat.name)} · Paid by ${whoLabel}${e.note?' · '+esc(e.note):''}</div>
-        </div>
-        <div class="rright">
-          <div class="ramt" style="color:var(--pink)">−${P(e.amt)}</div>
-          <div class="racts">
-            <button class="btn-ico btn btn-xs" onclick="openDateExpEdit(event,'${e.id}')">✏️</button>
-            <button class="btn-ico btn btn-xs btn-d" onclick="delConfirm('🗑️ Remove Expense','Remove this expense of ${P(e.amt)}?',()=>delDateExp('${e.id}'))">🗑️</button>
+  const expCntEl=document.getElementById('db-exp-cnt')
+  if(expCntEl)expCntEl.textContent=exps.length+' entries'
+  const expListEl=document.getElementById('db-exp-list')
+  if(expListEl){
+    if(exps.length===0){
+      expListEl.innerHTML='<div class="empty"><div class="empty-ico">🍽️</div><p>No date expenses yet<br><span style="font-size:12px;color:var(--txt3)">Add your first date expense above ↑</span></p></div>'
+    } else {
+      let expHtml=''
+      exps.forEach(e=>{
+        const cat=dbCats().find(c=>c.id===e.catId)||{icon:'💕',name:'Other',color:'#f06292'}
+        const whoLabel=e.who==='both'?'Both 💑':e.who==='u1'?USERS.u1.name:USERS.u2.name
+        expHtml+=`<div class="row db-exp-row" data-eid="${e.id}">
+          <div class="rico" style="background:${cat.color}22;font-size:18px">${cat.icon}</div>
+          <div class="rinfo">
+            <div class="rname">${esc(e.desc)}</div>
+            <div class="rsub">${fmtD(e.date)} · ${esc(cat.name)} · Paid by ${esc(whoLabel)}${e.note?' · '+esc(e.note):''}</div>
           </div>
-        </div>
-      </div>`
-    }).join('')
+          <div class="rright">
+            <div class="ramt" style="color:var(--pink)">−${P(e.amt)}</div>
+            <div class="racts">
+              <button class="btn-ico btn btn-xs db-exp-edit" data-eid="${e.id}">✏️</button>
+              <button class="btn-ico btn btn-xs btn-d db-exp-del" data-eid="${e.id}" data-amt="${e.amt}">🗑️</button>
+            </div>
+          </div>
+        </div>`
+      })
+      expListEl.innerHTML=expHtml
+      expListEl.querySelectorAll('.db-exp-edit').forEach(btn=>{
+        btn.addEventListener('click',function(ev){ev.stopPropagation();openDateExpEdit(ev,this.dataset.eid)})
+      })
+      expListEl.querySelectorAll('.db-exp-del').forEach(btn=>{
+        btn.addEventListener('click',function(ev){
+          ev.stopPropagation()
+          const eid=this.dataset.eid
+          delConfirm('🗑️ Remove Expense','Remove this expense?',()=>delDateExp(eid))
+        })
+      })
+    }
+  }
 
   // Fund history
   const funds=(S.dateBudget.funds||[]).slice().sort((a,b)=>new Date(b.date)-new Date(a.date))
-  document.getElementById('db-fund-cnt').textContent=funds.length+' entries'
-  document.getElementById('db-fund-list').innerHTML=funds.length===0
-    ?'<div class="empty"><div class="empty-ico">💰</div><p>No funds added yet</p></div>'
-    :funds.map(f=>{
-      const whoLabel=f.who==='both'?'Both 💑':f.who==='u1'?USERS.u1.name:USERS.u2.name
-      return`<div class="row">
-        <div class="rico" style="background:var(--teal-bg)">💰</div>
-        <div class="rinfo">
-          <div class="rname">Funds added by ${whoLabel}</div>
-          <div class="rsub">${fmtD(f.date)}${f.note?' · '+esc(f.note):''}</div>
-        </div>
-        <div class="rright">
-          <div class="ramt" style="color:var(--teal)">+${P(f.amt)}</div>
-          <div class="racts">
-            <button class="btn-ico btn btn-xs btn-d" onclick="delConfirm('🗑️ Remove','Remove +${P(f.amt)} fund entry?',()=>delDateFund('${f.id}'))">🗑️</button>
+  const fundCntEl=document.getElementById('db-fund-cnt')
+  if(fundCntEl)fundCntEl.textContent=funds.length+' entries'
+  const fundListEl=document.getElementById('db-fund-list')
+  if(fundListEl){
+    if(funds.length===0){
+      fundListEl.innerHTML='<div class="empty"><div class="empty-ico">💰</div><p>No funds added yet</p></div>'
+    } else {
+      let fundHtml=''
+      funds.forEach(f=>{
+        const whoLabel=f.who==='both'?'Both 💑':f.who==='u1'?USERS.u1.name:USERS.u2.name
+        fundHtml+=`<div class="row db-fund-row" data-fid="${f.id}">
+          <div class="rico" style="background:var(--teal-bg)">💰</div>
+          <div class="rinfo">
+            <div class="rname">Funds added by ${esc(whoLabel)}</div>
+            <div class="rsub">${fmtD(f.date)}${f.note?' · '+esc(f.note):''}</div>
           </div>
-        </div>
-      </div>`
-    }).join('')
+          <div class="rright">
+            <div class="ramt" style="color:var(--teal)">+${P(f.amt)}</div>
+            <div class="racts">
+              <button class="btn-ico btn btn-xs btn-d db-fund-del" data-fid="${f.id}">🗑️</button>
+            </div>
+          </div>
+        </div>`
+      })
+      fundListEl.innerHTML=fundHtml
+      fundListEl.querySelectorAll('.db-fund-del').forEach(btn=>{
+        btn.addEventListener('click',function(ev){
+          ev.stopPropagation()
+          const fid=this.dataset.fid
+          delConfirm('🗑️ Remove','Remove this fund entry?',()=>delDateFund(fid))
+        })
+      })
+    }
+  }
 }
-
 // ─── Date Budget: OPEN MODALS ─────────────────────────────
 function openDateFund(e){
   CP(e)
