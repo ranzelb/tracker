@@ -3423,7 +3423,8 @@ function saveDateFund(e){
     S.dateBudget.funds.unshift({id:newId,amt,who,note,date})
     toast(`${P(amt)} added to date fund! 💰`)
   }
-  cm('m-dateFund');renderDateBudget()
+  document.getElementById('m-dateFund').style.display='none'
+  try{renderDateBudget()}catch(e2){console.error('render fund error:',e2)}
 }
 
 function saveDateCat(e){
@@ -3454,34 +3455,37 @@ function saveDateCat(e){
     if(SB_READY&&AU_SB_ID)_sb.from('date_budget_categories').insert({id:newId,name,icon,limit_amount:limit,color}).catch(()=>{})
     toast(`Category "${name}" added! 🏷️`)
   }
-  cm('m-dateCat');renderDateBudget()
+  document.getElementById('m-dateCat').style.display='none'
+  try{renderDateBudget()}catch(e2){console.error('render cat error:',e2)}
 }
 
 function saveDateExp(e){
-  CP(e)
-  const eid=document.getElementById('de-eid').value
-  const desc=document.getElementById('de-desc').value.trim()
-  const amt=parseFloat(document.getElementById('de-amt').value)
-  const catId=document.getElementById('de-cat').value
-  const who=document.getElementById('de-who').value
-  const date=document.getElementById('de-date').value||tod()
-  const note=document.getElementById('de-note').value.trim()
-  if(!desc){showErr('de-err','Enter a description');return}
-  if(!amt||amt<=0){showErr('de-err','Enter a valid amount');return}
-  if(!S.dateBudget)S.dateBudget={cats:[],expenses:[],funds:[],hiddenCats:[]}
-  if(!S.dateBudget.expenses)S.dateBudget.expenses=[]
-  if(eid){
-    const idx=S.dateBudget.expenses.findIndex(x=>x.id===eid)
-    if(idx>-1)S.dateBudget.expenses[idx]={...S.dateBudget.expenses[idx],desc,amt,catId,who,date,note}
-    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_expenses').update({description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note}).eq('id',eid).catch(()=>{})
-    toast('Expense updated ✏️')
-  } else {
-    const newId=uid()
-    S.dateBudget.expenses.unshift({id:newId,desc,amt,catId,who,date,note})
-    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_expenses').insert({id:newId,description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note}).catch(()=>{})
-    toast('"'+desc+'" added! 💕')
-  }
-  cm('m-dateExp');renderDateBudget()
+  try{
+    if(!S.dateBudget)S.dateBudget={cats:[],expenses:[],funds:[],hiddenCats:[]}
+    if(!S.dateBudget.expenses)S.dateBudget.expenses=[]
+    const eid=document.getElementById('de-eid').value
+    const desc=(document.getElementById('de-desc').value||'').trim()
+    const amt=parseFloat(document.getElementById('de-amt').value||'0')
+    const catId=document.getElementById('de-cat').value||'dbc-other'
+    const who=document.getElementById('de-who').value||'u1'
+    const date=document.getElementById('de-date').value||tod()
+    const note=(document.getElementById('de-note').value||'').trim()
+    if(!desc){showErr('de-err','Enter a description');return}
+    if(!amt||amt<=0){showErr('de-err','Enter a valid amount');return}
+    if(eid){
+      const idx=S.dateBudget.expenses.findIndex(x=>x.id===eid)
+      if(idx>-1)S.dateBudget.expenses[idx]={...S.dateBudget.expenses[idx],desc,amt,catId,who,date,note}
+      if(SB_READY&&AU_SB_ID)_sb.from('date_budget_expenses').update({description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note}).eq('id',eid).catch(()=>{})
+      toast('Expense updated ✏️')
+    } else {
+      const newId=uid()
+      S.dateBudget.expenses.unshift({id:newId,desc,amt,catId,who,date,note})
+      if(SB_READY&&AU_SB_ID)_sb.from('date_budget_expenses').insert({id:newId,description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note}).catch(()=>{})
+      toast('"'+desc+'" added! 💕')
+    }
+    document.getElementById('m-dateExp').style.display='none'
+  }catch(err){console.error('saveDateExp error:',err);return}
+  try{renderDateBudget()}catch(e2){console.error('render error:',e2)}
 }
 
 async function delDateCat(cid){
