@@ -3101,247 +3101,200 @@ async function saveGoal(e){
 async function delGoal(gid){if(SB_READY&&AU_SB_ID)await sbDeleteGoal(gid);S.goals=S.goals.filter(g=>g.id!==gid);toast('Goal deleted 🗑️');renderShared()}
 
 // ─── MONTHLY DATE BUDGET ─────────────────────────────────
-// ── Persistence helpers: localStorage + Supabase (fire-and-forget) ──
-const DB_LS_KEY = 'rk_date_budget_v1'
-
-function dbLoad(){
-  try{
-    const raw=localStorage.getItem(DB_LS_KEY)
-    if(raw){
-      const parsed=JSON.parse(raw)
-      S.dateBudget=Object.assign({cats:[],expenses:[],funds:[],hiddenCats:[]},parsed)
-    }
-  }catch(e){}
-  if(!S.dateBudget)S.dateBudget={cats:[],expenses:[],funds:[],hiddenCats:[]}
-}
-
-function dbSave(){
-  try{localStorage.setItem(DB_LS_KEY,JSON.stringify(S.dateBudget))}catch(e){}
-}
+// State lives in S.dateBudget (same pattern as S.savingsCats etc.)
+// Hardcoded default categories — custom ones go in S.dateBudget.customCats
 
 const DB_DEFAULT_CATS=[
-  {id:'dbc-food',  name:'Food Dates',   icon:'🍽️', color:'#e91e8c', limit:0},
-  {id:'dbc-movie', name:'Movies',        icon:'🎬', color:'#9c27b0', limit:0},
-  {id:'dbc-travel',name:'Travel Dates',  icon:'✈️', color:'#2196f3', limit:0},
-  {id:'dbc-gift',  name:'Gifts',         icon:'🎁', color:'#ff5722', limit:0},
-  {id:'dbc-coffee',name:'Coffee Dates',  icon:'☕', color:'#795548', limit:0},
-  {id:'dbc-other', name:'Other',         icon:'💕', color:'#f06292', limit:0}
+  {id:'dbc-food',  name:'Food Dates',  icon:'🍽️', color:'#e91e8c'},
+  {id:'dbc-movie', name:'Movies',      icon:'🎬', color:'#9c27b0'},
+  {id:'dbc-travel',name:'Travel Dates',icon:'✈️', color:'#2196f3'},
+  {id:'dbc-gift',  name:'Gifts',       icon:'🎁', color:'#ff5722'},
+  {id:'dbc-coffee',name:'Coffee Dates',icon:'☕', color:'#795548'},
+  {id:'dbc-other', name:'Other',       icon:'💕', color:'#f06292'}
 ]
 
-function dbCats(){
+function dbAllCats(){
+  const hidden=S.dateBudget.hidden||[]
   const overrides={}
-  ;(S.dateBudget.cats||[]).forEach(c=>{overrides[c.id]=c})
-  const hidden=S.dateBudget.hiddenCats||[]
-  const merged=DB_DEFAULT_CATS
+  ;(S.dateBudget.customCats||[]).filter(c=>c.id.startsWith('dbc-')).forEach(c=>overrides[c.id]=c)
+  const defaults=DB_DEFAULT_CATS
     .filter(c=>!hidden.includes(c.id))
     .map(c=>overrides[c.id]?{...c,...overrides[c.id]}:c)
-  const customOnly=(S.dateBudget.cats||[]).filter(c=>!c.id.startsWith('dbc-'))
-  return [...merged,...customOnly]
+  const customs=(S.dateBudget.customCats||[]).filter(c=>!c.id.startsWith('dbc-'))
+  return [...defaults,...customs]
 }
 function dbTotal(){return(S.dateBudget.funds||[]).reduce((a,f)=>a+(+f.amt||0),0)}
 function dbSpent(){return(S.dateBudget.expenses||[]).reduce((a,e)=>a+(+e.amt||0),0)}
-function dbRemaining(){return Math.max(0,dbTotal()-dbSpent())}
-function dbCatSpent(catId){return(S.dateBudget.expenses||[]).filter(e=>e.catId===catId).reduce((a,e)=>a+(+e.amt||0),0)}
+function dbCatSpent(cid){return(S.dateBudget.expenses||[]).filter(e=>e.catId===cid).reduce((a,e)=>a+(+e.amt||0),0)}
 
-// ── RENDER ────────────────────────────────────────────────
+// ── RENDER ─────────────────────────────────────────────────
 function renderDateBudget(){
-  dbLoad() // ensure local state is fresh
-  const total=dbTotal(), spent=dbSpent(), rem=dbRemaining()
-  const cats=dbCats()
+  const total=dbTotal(), spent=dbSpent(), rem=Math.max(0,total-spent)
+  const cats=dbAllCats()
 
-  // ── Stats ──
+  // Stats row
   const statsEl=document.getElementById('db-stats')
-  if(statsEl){
-    statsEl.innerHTML=`
+  if(statsEl) statsEl.innerHTML=`
     <div class="sc" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0);border:1.5px solid #f48fb1">
       <div class="sc-ico">💰</div><div class="sc-lbl" style="color:#880e4f">Total Funds</div>
       <div class="sc-val" style="color:#c2185b">${P(total)}</div>
-      <span class="sdelta du">added to date fund</span>
-    </div>
+      <span class="sdelta du">added to date fund</span></div>
     <div class="sc" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0);border:1.5px solid #f06292">
       <div class="sc-ico">🧾</div><div class="sc-lbl" style="color:#880e4f">Total Spent</div>
       <div class="sc-val" style="color:#e91e8c">${P(spent)}</div>
-      <span class="sdelta dn">${pct(spent,total||1)}% of budget used</span>
-    </div>
+      <span class="sdelta dn">${pct(spent,total||1)}% used</span></div>
     <div class="sc" style="background:linear-gradient(135deg,#e8f5e9,#c8e6c9);border:1.5px solid #a5d6a7">
       <div class="sc-ico">💕</div><div class="sc-lbl" style="color:#1b5e20">Remaining</div>
       <div class="sc-val" style="color:#2e7d32">${P(rem)}</div>
-      <span class="sdelta du">${rem>0?'available for dates':'budget used up'}</span>
-    </div>
+      <span class="sdelta du">${rem>0?'available':'budget used up'}</span></div>
     <div class="sc" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0);border:1.5px solid #f48fb1">
-      <div class="sc-ico">🗓️</div><div class="sc-lbl" style="color:#880e4f">Date Entries</div>
+      <div class="sc-ico">🗓️</div><div class="sc-lbl" style="color:#880e4f">Entries</div>
       <div class="sc-val" style="color:#c2185b">${(S.dateBudget.expenses||[]).length}</div>
-      <span class="sdelta dn">experiences tracked</span>
-    </div>`
-  }
+      <span class="sdelta dn">experiences tracked</span></div>`
 
-  // ── Category cards ──
-  const catList=document.getElementById('db-cats-list')
-  if(catList){
-    let html='<div style="display:flex;flex-direction:column;gap:10px">'
+  // Category cards
+  const catEl=document.getElementById('db-cats-list')
+  if(catEl){
+    let h='<div style="display:flex;flex-direction:column;gap:10px">'
     cats.forEach(cat=>{
-      const cs=dbCatSpent(cat.id), lim=cat.limit||0
-      const pp=lim>0?Math.min(100,Math.round(cs/lim*100)):0
-      const bar=lim>0?`<div class="pw" style="height:8px;margin:8px 0"><div class="pf" style="width:${pp}%;background:${cat.color}"></div></div><div class="pmeta"><span>${P(cs)} spent</span><span>Limit: ${P(lim)}</span></div>`:''
-      html+=`<div class="goal-card" style="border-left:4px solid ${cat.color};padding:14px 16px">
+      const cs=dbCatSpent(cat.id)
+      const lim=cat.limit||0
+      const bar=lim>0?`<div class="pw" style="margin:8px 0"><div class="pf" style="width:${Math.min(100,Math.round(cs/lim*100))}%;background:${cat.color}"></div></div>
+        <div class="pmeta"><span>${P(cs)} spent</span><span>Limit ${P(lim)}</span></div>`:''
+      h+=`<div class="goal-card" style="border-left:4px solid ${cat.color};padding:14px 16px">
         <div class="goal-hd">
           <div style="display:flex;align-items:center;gap:10px">
-            <div class="goal-icon" style="background:${cat.color}22;border:1.5px solid ${cat.color}44;font-size:20px">${cat.icon}</div>
+            <div class="goal-icon" style="background:${cat.color}22;border:1.5px solid ${cat.color}55;font-size:20px">${cat.icon}</div>
             <div><div class="goal-title">${esc(cat.name)}</div><div class="goal-sub">${lim>0?'Limit: '+P(lim):'No limit set'}</div></div>
           </div>
           <div style="text-align:right"><div style="font-size:16px;font-weight:800;color:${cat.color}">${P(cs)}</div><div style="font-size:10px;color:var(--txt3)">spent</div></div>
-        </div>
-        ${bar}
+        </div>${bar}
         <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
-          <button class="btn btn-sm" style="background:${cat.color};color:#fff;border-color:transparent;font-size:12px" data-action="addexp" data-catid="${cat.id}">+ Expense</button>
-          <button class="btn btn-xs btn-g" data-action="editcat" data-catid="${cat.id}">✏️ Edit</button>
-          <button class="btn btn-xs btn-d" data-action="delcat" data-catid="${cat.id}">🗑️ Delete</button>
-        </div>
-      </div>`
+          <button class="btn btn-sm" style="background:${cat.color};color:#fff;border-color:transparent" data-act="exp" data-cid="${cat.id}">+ Expense</button>
+          <button class="btn btn-xs btn-g" data-act="edit" data-cid="${cat.id}">✏️ Edit</button>
+          <button class="btn btn-xs btn-d" data-act="del" data-cid="${cat.id}">🗑️</button>
+        </div></div>`
     })
-    html+='</div>'
-    catList.innerHTML=html
-    // Attach listeners
-    catList.querySelectorAll('[data-action]').forEach(btn=>{
-      btn.onclick=function(){
-        const a=this.dataset.action, cid=this.dataset.catid
-        if(a==='addexp'){openDateExpByCat(cid)}
-        else if(a==='editcat'){openDateCatForEdit(cid)}
-        else if(a==='delcat'){
-          const cat=dbCats().find(c=>c.id===cid)
-          delConfirm('🗑️ Delete Category','Delete "'+(cat?cat.name:'this category')+'"?',()=>doDelDateCat(cid))
-        }
+    h+=`</div><button class="btn btn-p" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" data-act="newcat">+ Add Custom Category</button>`
+    catEl.innerHTML=h
+    catEl.querySelectorAll('[data-act]').forEach(btn=>{
+      btn.onclick=function(ev){
+        ev.stopPropagation()
+        const act=this.dataset.act, cid=this.dataset.cid
+        if(act==='exp')   dbOpenExp(cid)
+        if(act==='edit')  dbOpenEditCat(cid)
+        if(act==='del')   dbDeleteCat(cid)
+        if(act==='newcat')dbOpenNewCat()
       }
     })
   }
-  // Add category button (outside card list)
-  const addCatBtn=document.getElementById('db-add-cat-btn')
-  if(addCatBtn) addCatBtn.onclick=()=>openDateCatModal()
 
-  // ── Pie chart ──
+  // Pie
   try{
-    const cc=CC()
-    const pieData=cats.map(c=>({c,amt:dbCatSpent(c.id)})).filter(x=>x.amt>0)
-    if(pieData.length>0){
-      mkChart('dbPie',{
-        type:'doughnut',
-        data:{
-          datasets:[{data:pieData.map(x=>x.amt),backgroundColor:pieData.map(x=>x.c.color+'cc'),borderWidth:2,borderColor:cc.bg2,hoverOffset:8}],
-          labels:pieData.map(x=>x.c.icon+' '+x.c.name)
-        },
-        options:{responsive:true,maintainAspectRatio:false,cutout:'68%',animation:{duration:400},
-          plugins:{legend:{display:true,position:'right',labels:{color:cc.txt2,font:{size:11},usePointStyle:true,boxWidth:10,padding:10}},
-          tooltip:{backgroundColor:cc.bg2,titleColor:cc.txt,bodyColor:cc.txt2,borderColor:cc.border,borderWidth:1}}}
-      })
+    const cc=CC(), pd=cats.map(c=>({c,v:dbCatSpent(c.id)})).filter(x=>x.v>0)
+    if(pd.length){
+      mkChart('dbPie',{type:'doughnut',
+        data:{labels:pd.map(x=>x.c.icon+' '+x.c.name),datasets:[{data:pd.map(x=>x.v),backgroundColor:pd.map(x=>x.c.color+'cc'),borderWidth:2,borderColor:cc.bg2}]},
+        options:{responsive:true,maintainAspectRatio:false,cutout:'65%',animation:{duration:400},
+          plugins:{legend:{display:true,position:'right',labels:{color:cc.txt2,font:{size:11},usePointStyle:true,boxWidth:10,padding:8}},
+          tooltip:{backgroundColor:cc.bg2,titleColor:cc.txt,bodyColor:cc.txt2}}}})
     }
-  }catch(chartErr){}
+  }catch(e){}
 
-  // ── Funding split ──
-  const u1f=(S.dateBudget.funds||[]).filter(f=>f.who==='u1').reduce((a,f)=>a+(+f.amt||0),0)
-  const u2f=(S.dateBudget.funds||[]).filter(f=>f.who==='u2').reduce((a,f)=>a+(+f.amt||0),0)
-  const bf=(S.dateBudget.funds||[]).filter(f=>f.who==='both').reduce((a,f)=>a+(+f.amt||0),0)
+  // Funding split
+  const u1f=(S.dateBudget.funds||[]).filter(f=>f.who==='u1').reduce((a,f)=>a+(+f.amt),0)
+  const u2f=(S.dateBudget.funds||[]).filter(f=>f.who==='u2').reduce((a,f)=>a+(+f.amt),0)
+  const bf =(S.dateBudget.funds||[]).filter(f=>f.who==='both').reduce((a,f)=>a+(+f.amt),0)
   const splitEl=document.getElementById('dbContribSplit')
-  if(splitEl){
-    splitEl.innerHTML=`<div style="margin-top:10px;padding-top:10px;border-top:1.5px solid var(--border)">
-      <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--pink)">💑 Funding Split</div>
-      ${[{name:USERS.u1.name,av:USERS.u1.avatar,total:u1f+bf*0.5},{name:USERS.u2.name,av:USERS.u2.avatar,total:u2f+bf*0.5}].map(r=>`
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-          <span style="font-size:20px">${r.av}</span>
-          <div style="flex:1"><div style="font-size:12px;font-weight:600">${esc(r.name)}</div>
-            <div class="pw" style="margin-top:4px"><div class="pf" style="width:${pct(r.total,total||1)}%;background:linear-gradient(90deg,#f48fb1,#e91e8c)"></div></div>
-          </div>
-          <div style="font-size:13px;font-weight:700;color:var(--pink)">${P(r.total)}</div>
-        </div>`).join('')}
-    </div>`
-  }
+  if(splitEl) splitEl.innerHTML=`<div style="margin-top:10px;padding-top:10px;border-top:1.5px solid var(--border)">
+    <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--pink)">💑 Funding Split</div>
+    ${[{n:USERS.u1.name,av:USERS.u1.avatar,t:u1f+bf*.5},{n:USERS.u2.name,av:USERS.u2.avatar,t:u2f+bf*.5}].map(r=>`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="font-size:20px">${r.av}</span>
+        <div style="flex:1"><div style="font-size:12px;font-weight:600">${esc(r.n)}</div>
+          <div class="pw" style="margin-top:4px"><div class="pf" style="width:${pct(r.t,total||1)}%;background:linear-gradient(90deg,#f48fb1,#e91e8c)"></div></div></div>
+        <div style="font-size:13px;font-weight:700;color:var(--pink)">${P(r.t)}</div>
+      </div>`).join('')}
+  </div>`
 
-  // ── Expense list ──
-  const exps=(S.dateBudget.expenses||[]).slice().sort((a,b)=>new Date(b.date||0)-new Date(a.date||0))
-  const expCntEl=document.getElementById('db-exp-cnt')
-  if(expCntEl)expCntEl.textContent=exps.length+' entries'
-  const expListEl=document.getElementById('db-exp-list')
-  if(expListEl){
-    if(!exps.length){
-      expListEl.innerHTML='<div class="empty"><div class="empty-ico">🍽️</div><p>No date expenses yet</p></div>'
-    } else {
+  // Expense list
+  const exps=[...(S.dateBudget.expenses||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+  const ecEl=document.getElementById('db-exp-cnt'); if(ecEl)ecEl.textContent=exps.length+' entries'
+  const elEl=document.getElementById('db-exp-list')
+  if(elEl){
+    if(!exps.length){ elEl.innerHTML='<div class="empty"><div class="empty-ico">🍽️</div><p>No expenses yet</p></div>'; }
+    else{
       let h=''
       exps.forEach(e=>{
-        const cat=dbCats().find(c=>c.id===e.catId)||{icon:'💕',name:'Other',color:'#f06292'}
+        const cat=dbAllCats().find(c=>c.id===e.catId)||{icon:'💕',name:'Other',color:'#f06292'}
         const who=e.who==='both'?'Both 💑':e.who==='u1'?USERS.u1.name:USERS.u2.name
         h+=`<div class="row">
           <div class="rico" style="background:${cat.color}22;font-size:18px">${cat.icon}</div>
           <div class="rinfo"><div class="rname">${esc(e.desc)}</div>
-            <div class="rsub">${fmtD(e.date)} · ${esc(cat.name)} · ${esc(who)}${e.note?' · '+esc(e.note):''}</div>
-          </div>
+            <div class="rsub">${fmtD(e.date)} · ${esc(cat.name)} · ${esc(who)}${e.note?' · '+esc(e.note):''}</div></div>
           <div class="rright">
             <div class="ramt" style="color:var(--pink)">−${P(e.amt)}</div>
             <div class="racts">
-              <button class="btn btn-xs btn-g" data-action="editexp" data-eid="${e.id}">✏️</button>
-              <button class="btn btn-xs btn-d" data-action="delexp" data-eid="${e.id}">🗑️</button>
-            </div>
-          </div>
-        </div>`
+              <button class="btn btn-xs btn-g" data-act="editexp" data-eid="${e.id}">✏️</button>
+              <button class="btn btn-xs btn-d" data-act="delexp" data-eid="${e.id}">🗑️</button>
+            </div></div></div>`
       })
-      expListEl.innerHTML=h
-      expListEl.querySelectorAll('[data-action]').forEach(btn=>{
-        btn.onclick=function(){
-          const a=this.dataset.action, eid=this.dataset.eid
-          if(a==='editexp') openDateExpForEdit(eid)
-          else if(a==='delexp') delConfirm('🗑️ Remove','Remove this expense?',()=>doDelDateExp(eid))
+      elEl.innerHTML=h
+      elEl.querySelectorAll('[data-act]').forEach(btn=>{
+        btn.onclick=function(ev){
+          ev.stopPropagation()
+          const act=this.dataset.act, eid=this.dataset.eid
+          if(act==='editexp') dbOpenEditExp(eid)
+          if(act==='delexp')  delConfirm('🗑️ Remove Expense','Remove this expense?',()=>dbDelExp(eid))
         }
       })
     }
   }
 
-  // ── Fund list ──
-  const funds=(S.dateBudget.funds||[]).slice().sort((a,b)=>new Date(b.date||0)-new Date(a.date||0))
-  const fundCntEl=document.getElementById('db-fund-cnt')
-  if(fundCntEl)fundCntEl.textContent=funds.length+' entries'
-  const fundListEl=document.getElementById('db-fund-list')
-  if(fundListEl){
-    if(!funds.length){
-      fundListEl.innerHTML='<div class="empty"><div class="empty-ico">💰</div><p>No funds added yet</p></div>'
-    } else {
+  // Fund list
+  const funds=[...(S.dateBudget.funds||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+  const fcEl=document.getElementById('db-fund-cnt'); if(fcEl)fcEl.textContent=funds.length+' entries'
+  const flEl=document.getElementById('db-fund-list')
+  if(flEl){
+    if(!funds.length){ flEl.innerHTML='<div class="empty"><div class="empty-ico">💰</div><p>No funds added yet</p></div>'; }
+    else{
       let h=''
       funds.forEach(f=>{
         const who=f.who==='both'?'Both 💑':f.who==='u1'?USERS.u1.name:USERS.u2.name
         h+=`<div class="row">
           <div class="rico" style="background:var(--teal-bg)">💰</div>
-          <div class="rinfo"><div class="rname">Funds added by ${esc(who)}</div>
-            <div class="rsub">${fmtD(f.date)}${f.note?' · '+esc(f.note):''}</div>
-          </div>
+          <div class="rinfo"><div class="rname">Funds by ${esc(who)}</div>
+            <div class="rsub">${fmtD(f.date)}${f.note?' · '+esc(f.note):''}</div></div>
           <div class="rright">
             <div class="ramt" style="color:var(--teal)">+${P(f.amt)}</div>
-            <div class="racts"><button class="btn btn-xs btn-d" data-action="delfund" data-fid="${f.id}">🗑️</button></div>
-          </div>
-        </div>`
+            <div class="racts"><button class="btn btn-xs btn-d" data-act="delfund" data-fid="${f.id}">🗑️</button></div>
+          </div></div>`
       })
-      fundListEl.innerHTML=h
-      fundListEl.querySelectorAll('[data-action]').forEach(btn=>{
-        btn.onclick=function(){
-          delConfirm('🗑️ Remove','Remove this fund entry?',()=>doDelDateFund(this.dataset.fid))
+      flEl.innerHTML=h
+      flEl.querySelectorAll('[data-act]').forEach(btn=>{
+        btn.onclick=function(ev){
+          ev.stopPropagation()
+          delConfirm('🗑️ Remove','Remove this fund entry?',()=>dbDelFund(this.dataset.fid))
         }
       })
     }
   }
 }
 
-// ── OPEN MODALS ───────────────────────────────────────────
+// ── OPEN MODALS ────────────────────────────────────────────
 function openDateFund(e){
-  if(e&&e.stopPropagation)e.stopPropagation()
   document.getElementById('df-eid').value=''
   document.getElementById('df-amt').value=''
   document.getElementById('df-note').value=''
   document.getElementById('df-date').value=tod()
   document.getElementById('df-who').value='u1'
-  const u1o=document.getElementById('df-who-u1');if(u1o)u1o.textContent=USERS.u1.name
-  const u2o=document.getElementById('df-who-u2');if(u2o)u2o.textContent=USERS.u2.name
+  const o1=document.getElementById('df-who-u1');if(o1)o1.textContent=USERS.u1.name
+  const o2=document.getElementById('df-who-u2');if(o2)o2.textContent=USERS.u2.name
   document.getElementById('df-err').style.display='none'
   document.getElementById('df-title').textContent='💰 Add Funds to Date Budget'
   document.getElementById('m-dateFund').style.display='flex'
 }
-
-function openDateCatModal(){
+function dbOpenNewCat(){
   document.getElementById('dc-eid').value=''
   document.getElementById('dc-name').value=''
   document.getElementById('dc-icon').value='💕'
@@ -3351,11 +3304,10 @@ function openDateCatModal(){
   document.getElementById('dc-title').textContent='🏷️ New Date Category'
   document.getElementById('m-dateCat').style.display='flex'
 }
-function openDateCat(e){openDateCatModal()}
-
-function openDateCatForEdit(cid){
-  const cat=(S.dateBudget.cats||[]).find(c=>c.id===cid)||DB_DEFAULT_CATS.find(c=>c.id===cid)
-  if(!cat)return
+function openDateCat(e){dbOpenNewCat()}
+function openDateCatModal(){dbOpenNewCat()}
+function dbOpenEditCat(cid){
+  const cat=dbAllCats().find(c=>c.id===cid); if(!cat)return
   document.getElementById('dc-eid').value=cid
   document.getElementById('dc-name').value=cat.name
   document.getElementById('dc-icon').value=cat.icon
@@ -3365,28 +3317,24 @@ function openDateCatForEdit(cid){
   document.getElementById('dc-title').textContent='✏️ Edit Category'
   document.getElementById('m-dateCat').style.display='flex'
 }
-function openDateCatEdit(e,cid){openDateCatForEdit(cid)}
-function openDateCatById(cid){openDateCatForEdit(cid)}
-
-function openDateExpByCat(catId){
+function dbOpenExp(catId){
   document.getElementById('de-eid').value=''
   document.getElementById('de-desc').value=''
   document.getElementById('de-amt').value=''
   document.getElementById('de-note').value=''
   document.getElementById('de-date').value=tod()
   document.getElementById('de-who').value='u1'
-  const u1o=document.getElementById('de-who-u1');if(u1o)u1o.textContent=USERS.u1.name
-  const u2o=document.getElementById('de-who-u2');if(u2o)u2o.textContent=USERS.u2.name
+  const o1=document.getElementById('de-who-u1');if(o1)o1.textContent=USERS.u1.name
+  const o2=document.getElementById('de-who-u2');if(o2)o2.textContent=USERS.u2.name
   const sel=document.getElementById('de-cat')
-  if(sel) sel.innerHTML=dbCats().map(c=>`<option value="${c.id}"${c.id===catId?' selected':''}>${c.icon} ${c.name}</option>`).join('')
+  if(sel)sel.innerHTML=dbAllCats().map(c=>`<option value="${c.id}"${c.id===catId?' selected':''}>${c.icon} ${c.name}</option>`).join('')
   document.getElementById('de-err').style.display='none'
   document.getElementById('de-title').textContent='🍽️ Add Date Expense'
   document.getElementById('m-dateExp').style.display='flex'
 }
-function openDateExp(e,catId){openDateExpByCat(catId||'dbc-food')}
-function openDateExpById(catId){openDateExpByCat(catId)}
-
-function openDateExpForEdit(eid){
+function openDateExp(e,catId){dbOpenExp(catId||'dbc-food')}
+function openDateExpById(catId){dbOpenExp(catId)}
+function dbOpenEditExp(eid){
   const exp=(S.dateBudget.expenses||[]).find(x=>x.id===eid);if(!exp)return
   document.getElementById('de-eid').value=eid
   document.getElementById('de-desc').value=exp.desc
@@ -3394,75 +3342,83 @@ function openDateExpForEdit(eid){
   document.getElementById('de-note').value=exp.note||''
   document.getElementById('de-date').value=exp.date
   document.getElementById('de-who').value=exp.who||'u1'
-  const u1o=document.getElementById('de-who-u1');if(u1o)u1o.textContent=USERS.u1.name
-  const u2o=document.getElementById('de-who-u2');if(u2o)u2o.textContent=USERS.u2.name
+  const o1=document.getElementById('de-who-u1');if(o1)o1.textContent=USERS.u1.name
+  const o2=document.getElementById('de-who-u2');if(o2)o2.textContent=USERS.u2.name
   const sel=document.getElementById('de-cat')
-  if(sel) sel.innerHTML=dbCats().map(c=>`<option value="${c.id}"${c.id===exp.catId?' selected':''}>${c.icon} ${c.name}</option>`).join('')
+  if(sel)sel.innerHTML=dbAllCats().map(c=>`<option value="${c.id}"${c.id===exp.catId?' selected':''}>${c.icon} ${c.name}</option>`).join('')
   document.getElementById('de-err').style.display='none'
   document.getElementById('de-title').textContent='✏️ Edit Date Expense'
   document.getElementById('m-dateExp').style.display='flex'
 }
-function openDateExpEdit(e,eid){openDateExpForEdit(eid)}
 
-// ── SAVE FUNCTIONS ────────────────────────────────────────
-function saveDateFund(e){
-  dbLoad()
-  const amt=parseFloat(document.getElementById('df-amt').value||'0')
+// ── SAVE FUNCTIONS (same async pattern as saveSavCat/saveSavEntry) ──────────
+async function saveDateFund(e){
+  const amt=parseFloat(document.getElementById('df-amt').value)
   const who=document.getElementById('df-who').value||'u1'
   const note=(document.getElementById('df-note').value||'').trim()
   const date=document.getElementById('df-date').value||tod()
   const eid=document.getElementById('df-eid').value
-  if(!amt||amt<=0){document.getElementById('df-err').textContent='Enter a valid amount';document.getElementById('df-err').style.display='block';return}
-  if(!S.dateBudget.funds)S.dateBudget.funds=[]
-  if(eid){
-    const i=S.dateBudget.funds.findIndex(f=>f.id===eid)
-    if(i>-1)S.dateBudget.funds[i]={...S.dateBudget.funds[i],amt,who,note,date}
-    toast('Fund updated ✏️')
-  } else {
-    const newId=uid()
-    S.dateBudget.funds.unshift({id:newId,amt,who,note,date})
-    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_funds').insert({id:newId,user_id:AU_SB_ID,amount:amt,funded_by:who,note,fund_date:date}).catch(()=>{})
-    toast(P(amt)+' added to date fund! 💰')
+  if(!amt||amt<=0){
+    const err=document.getElementById('df-err')
+    err.textContent='Enter a valid amount';err.style.display='block';return
   }
-  dbSave()
+  if(!S.dateBudget.funds)S.dateBudget.funds=[]
+  const entry={id:uid(),amt,who,note,date}
+  if(SB_READY&&AU_SB_ID){
+    const {data,error}=await _sb.from('date_budget_funds')
+      .insert({id:entry.id,user_id:AU_SB_ID,amount:amt,funded_by:who,note:note||null,fund_date:date})
+      .select().single()
+    if(!error&&data)entry.id=data.id
+  }
+  S.dateBudget.funds.unshift(entry)
+  localStorage.setItem('rk_db_v1',JSON.stringify(S.dateBudget))
   document.getElementById('m-dateFund').style.display='none'
+  toast(P(amt)+' added to date fund! 💰')
   renderDateBudget()
 }
 
-function saveDateCat(e){
-  dbLoad()
+async function saveDateCat(e){
   const eid=document.getElementById('dc-eid').value
   const name=(document.getElementById('dc-name').value||'').trim()
   const icon=(document.getElementById('dc-icon').value||'').trim()||'💕'
   const limit=parseFloat(document.getElementById('dc-limit').value||'0')||0
   const color=document.getElementById('dc-color').value||'#e91e8c'
-  if(!name){document.getElementById('dc-err').textContent='Enter a name';document.getElementById('dc-err').style.display='block';return}
-  if(!S.dateBudget.cats)S.dateBudget.cats=[]
+  if(!name){
+    const err=document.getElementById('dc-err')
+    err.textContent='Enter a category name';err.style.display='block';return
+  }
+  if(!S.dateBudget.customCats)S.dateBudget.customCats=[]
   if(eid){
+    // Edit existing
     const isDefault=eid.startsWith('dbc-')
     if(isDefault){
-      const ex=S.dateBudget.cats.find(c=>c.id===eid)
+      const ex=S.dateBudget.customCats.find(c=>c.id===eid)
       if(ex)Object.assign(ex,{name,icon,limit,color})
-      else S.dateBudget.cats.push({id:eid,name,icon,limit,color})
+      else S.dateBudget.customCats.push({id:eid,name,icon,limit,color})
     } else {
-      const i=S.dateBudget.cats.findIndex(c=>c.id===eid)
-      if(i>-1)S.dateBudget.cats[i]={...S.dateBudget.cats[i],name,icon,limit,color}
-      if(SB_READY&&AU_SB_ID)_sb.from('date_budget_categories').update({name,icon,limit_amount:limit,color}).eq('id',eid).catch(()=>{})
+      const i=S.dateBudget.customCats.findIndex(c=>c.id===eid)
+      if(i>-1)S.dateBudget.customCats[i]={...S.dateBudget.customCats[i],name,icon,limit,color}
+      if(SB_READY&&AU_SB_ID)_sb.from('date_budget_categories')
+        .update({name,icon,limit_amount:limit,color}).eq('id',eid).catch(()=>{})
     }
     toast('Category updated ✏️')
   } else {
-    const newId=uid()
-    S.dateBudget.cats.push({id:newId,name,icon,limit,color})
-    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_categories').insert({id:newId,user_id:AU_SB_ID,name,icon,limit_amount:limit,color}).catch(()=>{})
+    const newCat={id:uid(),name,icon,limit,color}
+    if(SB_READY&&AU_SB_ID){
+      const {data,error}=await _sb.from('date_budget_categories')
+        .insert({id:newCat.id,user_id:AU_SB_ID,name,icon,limit_amount:limit,color})
+        .select().single()
+      if(!error&&data)newCat.id=data.id
+    }
+    S.dateBudget.customCats.push(newCat)
     toast('"'+name+'" added! 🏷️')
   }
-  dbSave()
+  localStorage.setItem('rk_db_v1',JSON.stringify(S.dateBudget))
   document.getElementById('m-dateCat').style.display='none'
   renderDateBudget()
 }
 
-function saveDateExp(e){
-  dbLoad()
+async function saveDateExp(e){
   const eid=document.getElementById('de-eid').value
   const desc=(document.getElementById('de-desc').value||'').trim()
   const amt=parseFloat(document.getElementById('de-amt').value||'0')
@@ -3470,56 +3426,64 @@ function saveDateExp(e){
   const who=document.getElementById('de-who').value||'u1'
   const date=document.getElementById('de-date').value||tod()
   const note=(document.getElementById('de-note').value||'').trim()
-  if(!desc){document.getElementById('de-err').textContent='Enter a description';document.getElementById('de-err').style.display='block';return}
-  if(!amt||amt<=0){document.getElementById('de-err').textContent='Enter a valid amount';document.getElementById('de-err').style.display='block';return}
+  const errEl=document.getElementById('de-err')
+  if(!desc){errEl.textContent='Enter a description';errEl.style.display='block';return}
+  if(!amt||amt<=0){errEl.textContent='Enter a valid amount';errEl.style.display='block';return}
   if(!S.dateBudget.expenses)S.dateBudget.expenses=[]
   if(eid){
     const i=S.dateBudget.expenses.findIndex(x=>x.id===eid)
     if(i>-1)S.dateBudget.expenses[i]={...S.dateBudget.expenses[i],desc,amt,catId,who,date,note}
-    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_expenses').update({description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note}).eq('id',eid).catch(()=>{})
+    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_expenses')
+      .update({description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note:note||null})
+      .eq('id',eid).catch(()=>{})
     toast('Expense updated ✏️')
   } else {
-    const newId=uid()
-    S.dateBudget.expenses.unshift({id:newId,desc,amt,catId,who,date,note})
-    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_expenses').insert({id:newId,user_id:AU_SB_ID,description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note}).catch(()=>{})
+    const entry={id:uid(),desc,amt,catId,who,date,note}
+    if(SB_READY&&AU_SB_ID){
+      const {data,error}=await _sb.from('date_budget_expenses')
+        .insert({id:entry.id,user_id:AU_SB_ID,description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note:note||null})
+        .select().single()
+      if(!error&&data)entry.id=data.id
+    }
+    S.dateBudget.expenses.unshift(entry)
     toast('"'+desc+'" added! 💕')
   }
-  dbSave()
+  localStorage.setItem('rk_db_v1',JSON.stringify(S.dateBudget))
   document.getElementById('m-dateExp').style.display='none'
   renderDateBudget()
 }
 
-// ── DELETE FUNCTIONS ──────────────────────────────────────
-function doDelDateCat(cid){
-  dbLoad()
-  if(cid.startsWith('dbc-')){
-    if(!S.dateBudget.hiddenCats)S.dateBudget.hiddenCats=[]
-    if(!S.dateBudget.hiddenCats.includes(cid))S.dateBudget.hiddenCats.push(cid)
-    S.dateBudget.cats=(S.dateBudget.cats||[]).filter(c=>c.id!==cid)
-  } else {
-    S.dateBudget.cats=(S.dateBudget.cats||[]).filter(c=>c.id!==cid)
-    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_categories').delete().eq('id',cid).catch(()=>{})
-  }
-  dbSave();toast('Category removed 🗑️');renderDateBudget()
+// ── DELETE ──────────────────────────────────────────────────
+function dbDeleteCat(cid){
+  const isDefault=cid.startsWith('dbc-')
+  const name=(dbAllCats().find(c=>c.id===cid)||{name:'this category'}).name
+  delConfirm('🗑️ Delete','Delete "'+name+'"?',async()=>{
+    if(isDefault){
+      if(!S.dateBudget.hidden)S.dateBudget.hidden=[]
+      if(!S.dateBudget.hidden.includes(cid))S.dateBudget.hidden.push(cid)
+      S.dateBudget.customCats=(S.dateBudget.customCats||[]).filter(c=>c.id!==cid)
+    } else {
+      S.dateBudget.customCats=(S.dateBudget.customCats||[]).filter(c=>c.id!==cid)
+      if(SB_READY&&AU_SB_ID)await _sb.from('date_budget_categories').delete().eq('id',cid).catch(()=>{})
+    }
+    localStorage.setItem('rk_db_v1',JSON.stringify(S.dateBudget))
+    toast('Category removed 🗑️');renderDateBudget()
+  })
 }
-function doDelDateExp(eid){
-  dbLoad()
+async function dbDelExp(eid){
   S.dateBudget.expenses=(S.dateBudget.expenses||[]).filter(e=>e.id!==eid)
-  if(SB_READY&&AU_SB_ID)_sb.from('date_budget_expenses').delete().eq('id',eid).catch(()=>{})
-  dbSave();toast('Expense removed 🗑️');renderDateBudget()
+  if(SB_READY&&AU_SB_ID)await _sb.from('date_budget_expenses').delete().eq('id',eid).catch(()=>{})
+  localStorage.setItem('rk_db_v1',JSON.stringify(S.dateBudget))
+  toast('Expense removed 🗑️');renderDateBudget()
 }
-function doDelDateFund(fid){
-  dbLoad()
+async function dbDelFund(fid){
   S.dateBudget.funds=(S.dateBudget.funds||[]).filter(f=>f.id!==fid)
-  if(SB_READY&&AU_SB_ID)_sb.from('date_budget_funds').delete().eq('id',fid).catch(()=>{})
-  dbSave();toast('Fund entry removed 🗑️');renderDateBudget()
+  if(SB_READY&&AU_SB_ID)await _sb.from('date_budget_funds').delete().eq('id',fid).catch(()=>{})
+  localStorage.setItem('rk_db_v1',JSON.stringify(S.dateBudget))
+  toast('Fund entry removed 🗑️');renderDateBudget()
 }
-// Legacy aliases
-function delDateCat(cid){doDelDateCat(cid)}
-function delDateExp(eid){doDelDateExp(eid)}
-function delDateFund(fid){doDelDateFund(fid)}
 
-// ── LOAD FROM SUPABASE (on login) ─────────────────────────
+// ── LOAD FROM SUPABASE on login ─────────────────────────────
 async function loadDateBudgetFromSB(){
   if(!SB_READY||!AU_SB_ID)return
   try{
@@ -3527,17 +3491,27 @@ async function loadDateBudgetFromSB(){
       _sb.from('date_budget_categories').select('*').order('created_at'),
       _sb.from('date_budget_expenses').select('*').order('expense_date',{ascending:false}),
       _sb.from('date_budget_funds').select('*').order('fund_date',{ascending:false})
-      // RLS handles filtering by user_id + partner_id automatically
     ])
-    if(!cr.error&&cr.data) S.dateBudget.cats=(cr.data||[]).map(c=>({id:c.id,name:c.name,icon:c.icon||'💕',limit:+c.limit_amount||0,color:c.color||'#e91e8c'}))
-    if(!er.error&&er.data) S.dateBudget.expenses=(er.data||[]).map(e=>({id:e.id,desc:e.description,amt:+e.amount||0,catId:e.category_id||'dbc-other',who:e.paid_by||'u1',date:e.expense_date,note:e.note||''}))
-    if(!fr.error&&fr.data) S.dateBudget.funds=(fr.data||[]).map(f=>({id:f.id,amt:+f.amount||0,who:f.funded_by||'u1',note:f.note||'',date:f.fund_date}))
-    dbSave() // sync to localStorage after loading from DB
-  }catch(err){} // tables may not exist yet
+    if(!cr.error&&cr.data&&cr.data.length)
+      S.dateBudget.customCats=(cr.data).map(c=>({id:c.id,name:c.name,icon:c.icon||'💕',limit:+c.limit_amount||0,color:c.color||'#e91e8c'}))
+    if(!er.error&&er.data&&er.data.length)
+      S.dateBudget.expenses=(er.data).map(e=>({id:e.id,desc:e.description,amt:+e.amount||0,catId:e.category_id||'dbc-other',who:e.paid_by||'u1',date:e.expense_date,note:e.note||''}))
+    if(!fr.error&&fr.data&&fr.data.length)
+      S.dateBudget.funds=(fr.data).map(f=>({id:f.id,amt:+f.amount||0,who:f.funded_by||'u1',note:f.note||'',date:f.fund_date}))
+    localStorage.setItem('rk_db_v1',JSON.stringify(S.dateBudget))
+  }catch(err){}
 }
 
-// ── INIT: load from localStorage immediately on page load ─
-dbLoad()
+// ── INIT: restore from localStorage immediately ─────────────
+;(function dbInit(){
+  try{
+    const raw=localStorage.getItem('rk_db_v1')
+    if(raw){
+      const p=JSON.parse(raw)
+      S.dateBudget=Object.assign({customCats:[],expenses:[],funds:[],hidden:[]},p)
+    }
+  }catch(e){}
+})()
 
 
 // ─── CATEGORIES ───────────────────────────────────────────
