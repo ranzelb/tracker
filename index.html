@@ -3243,9 +3243,13 @@ function renderDateBudget(){
       elEl.querySelectorAll('[data-act]').forEach(btn=>{
         btn.onclick=function(ev){
           ev.stopPropagation()
-          const act=this.dataset.act, eid=this.dataset.eid
+          const act=this.dataset.act
+          const eid=this.dataset.eid
           if(act==='editexp') dbOpenEditExp(eid)
-          if(act==='delexp')  delConfirm('🗑️ Remove Expense','Remove this expense?',()=>dbDelExp(eid))
+          if(act==='delexp'){
+            const capturedEid=eid
+            delConfirm('🗑️ Remove Expense','Remove this expense?',()=>dbDelExp(capturedEid))
+          }
         }
       })
     }
@@ -3274,7 +3278,8 @@ function renderDateBudget(){
       flEl.querySelectorAll('[data-act]').forEach(btn=>{
         btn.onclick=function(ev){
           ev.stopPropagation()
-          delConfirm('🗑️ Remove','Remove this fund entry?',()=>dbDelFund(this.dataset.fid))
+          const fid=this.dataset.fid
+          delConfirm('🗑️ Remove','Remove this fund entry?',()=>dbDelFund(fid))
         }
       })
     }
