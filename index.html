@@ -3370,6 +3370,13 @@ async function deleteDateFund(fid){
 }
 
 // ── RENDER ──────────────────────────────────────────────────
+
+function dbClickExp(btn){openDateExp(null,btn.dataset.cid)}
+function dbClickEditCat(btn){openDateCatEdit(null,btn.dataset.cid)}
+function dbClickDelCat(btn){deleteDateCat(btn.dataset.cid)}
+function dbClickEditExp(btn){openDateExpEdit(null,btn.dataset.eid)}
+function dbClickDelExp(btn){deleteDateExp(btn.dataset.eid)}
+function dbClickDelFund(btn){deleteDateFund(btn.dataset.fid)}
 function renderDateBudget(){
   // Always reload from localStorage first
   try{
@@ -3429,9 +3436,9 @@ function renderDateBudget(){
             '<div style="font-size:10px;color:var(--txt3)">spent</div></div>'+
           '</div>'+bar+
           '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'+
-            '<button class="btn btn-sm" style="background:'+cat.color+';color:#fff;border-color:transparent" onclick="openDateExp(event,\''+cat.id+'\')">+ Expense</button>'+
-            '<button class="btn btn-xs btn-g" onclick="openDateCatEdit(event,\''+cat.id+'\')">✏️ Edit</button>'+
-            '<button class="btn btn-xs btn-d" onclick="deleteDateCat(\''+cat.id+'\')">🗑️ Delete</button>'+
+            '<button class="btn btn-sm" style="background:'+cat.color+';color:#fff;border-color:transparent" data-cid="'+cat.id+'" onclick="dbClickExp(this)">+ Expense</button>'+
+            '<button class="btn btn-xs btn-g" data-cid="'+cat.id+'" onclick="dbClickEditCat(this)">✏️ Edit</button>'+
+            '<button class="btn btn-xs btn-d" data-cid="'+cat.id+'" onclick="dbClickDelCat(this)">🗑️ Delete</button>'+
           '</div>'+
         '</div>'
       }).join(''))+
@@ -3479,25 +3486,34 @@ function renderDateBudget(){
     if(!exps.length){
       ele.innerHTML='<div class="empty"><div class="empty-ico">🍽️</div><p>No expenses yet</p></div>'
     }else{
-      ele.innerHTML=exps.map(function(ex){
+      ele.innerHTML=''
+      exps.forEach(function(ex){
         var ecat=dbGetCats().find(function(c){return c.id===ex.catId})||{icon:'💕',name:'Other',color:'#f06292'}
         var ewho=ex.who==='both'?'Both 💑':ex.who==='u1'?USERS.u1.name:USERS.u2.name
-        return '<div class="row">'+
+        var row=document.createElement('div'); row.className='row'
+        row.innerHTML=
           '<div class="rico" style="background:'+ecat.color+'22;font-size:18px">'+ecat.icon+'</div>'+
           '<div class="rinfo"><div class="rname">'+esc(ex.desc)+'</div>'+
             '<div class="rsub">'+fmtD(ex.date)+' · '+esc(ecat.name)+' · '+esc(ewho)+(ex.note?' · '+esc(ex.note):'')+'</div></div>'+
           '<div class="rright">'+
             '<div class="ramt" style="color:var(--pink)">−'+P(ex.amt)+'</div>'+
-            '<div class="racts">'+
-              '<button class="btn btn-xs btn-g" onclick="openDateExpEdit(event,\''+ex.id+'\')">✏️</button>'+
-              '<button class="btn btn-xs btn-d" onclick="deleteDateExp(\''+ex.id+'\')">🗑️</button>'+
-            '</div>'+
-          '</div>'+
-        '</div>'
-      }).join('')
+            '<div class="racts"></div>'+
+          '</div>'
+        var racts=row.querySelector('.racts')
+        var editBtn=document.createElement('button')
+        editBtn.className='btn btn-xs btn-g'
+        editBtn.textContent='✏️'
+        editBtn.onclick=(function(id){return function(){openDateExpEdit(null,id)}})(ex.id)
+        var delBtn=document.createElement('button')
+        delBtn.className='btn btn-xs btn-d'
+        delBtn.textContent='🗑️'
+        delBtn.onclick=(function(id){return function(){deleteDateExp(id)}})(ex.id)
+        racts.appendChild(editBtn)
+        racts.appendChild(delBtn)
+        ele.appendChild(row)
+      })
     }
   }
-
   // Fund list
   var fds=(S.dateBudget.funds||[]).slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'')})
   var fce=document.getElementById('db-fund-cnt'); if(fce) fce.textContent=fds.length+' entries'
@@ -3506,20 +3522,25 @@ function renderDateBudget(){
     if(!fds.length){
       fle.innerHTML='<div class="empty"><div class="empty-ico">💰</div><p>No funds added yet</p></div>'
     }else{
-      fle.innerHTML=fds.map(function(fd){
+      fle.innerHTML=''
+      fds.forEach(function(fd){
         var fwho=fd.who==='both'?'Both 💑':fd.who==='u1'?USERS.u1.name:USERS.u2.name
-        return '<div class="row">'+
+        var row=document.createElement('div'); row.className='row'
+        row.innerHTML=
           '<div class="rico" style="background:var(--teal-bg)">💰</div>'+
           '<div class="rinfo"><div class="rname">Funds by '+esc(fwho)+'</div>'+
             '<div class="rsub">'+fmtD(fd.date)+(fd.note?' · '+esc(fd.note):'')+'</div></div>'+
           '<div class="rright">'+
             '<div class="ramt" style="color:var(--teal)">+'+P(fd.amt)+'</div>'+
-            '<div class="racts">'+
-              '<button class="btn btn-xs btn-d" onclick="deleteDateFund(\''+fd.id+'\')">🗑️</button>'+
-            '</div>'+
-          '</div>'+
-        '</div>'
-      }).join('')
+            '<div class="racts"></div>'+
+          '</div>'
+        var delBtn=document.createElement('button')
+        delBtn.className='btn btn-xs btn-d'
+        delBtn.textContent='🗑️'
+        delBtn.onclick=(function(id){return function(){deleteDateFund(id)}})(fd.id)
+        row.querySelector('.racts').appendChild(delBtn)
+        fle.appendChild(row)
+      })
     }
   }
 }
