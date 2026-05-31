@@ -1535,7 +1535,7 @@ tbody tr:hover td{background:var(--bg3)}
       <div class="fg"><label>Note (optional)</label><input type="text" id="de-note" placeholder="Optional note…"/></div>
       <div class="err" id="de-err" style="display:none"></div>
     </div>
-    <div class="mfoot"><button class="btn" onclick="cm('m-dateExp')">Cancel</button><button class="btn btn-p" style="background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" onclick="saveDateExp(event)">Add Expense</button></div>
+    <div class="mfoot"><button class="btn" onclick="cm('m-dateExp')">Cancel</button><button class="btn btn-p" id="de-save-btn" style="background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" onclick="saveDateExp(event)">Add Expense</button></div>
   </div>
 </div>
 
@@ -3199,6 +3199,7 @@ function openDateExp(e,catId){
   }
   document.getElementById('de-err').style.display='none'
   document.getElementById('de-title').textContent='🍽️ Add Date Expense'
+  var sb=document.getElementById('de-save-btn'); if(sb) sb.textContent='Add Expense'
   document.getElementById('m-dateExp').style.display='flex'
 }
 function openDateExpEdit(e,eid){
@@ -3220,6 +3221,7 @@ function openDateExpEdit(e,eid){
   }
   document.getElementById('de-err').style.display='none'
   document.getElementById('de-title').textContent='✏️ Edit Date Expense'
+  var sb=document.getElementById('de-save-btn'); if(sb) sb.textContent='Save Changes'
   document.getElementById('m-dateExp').style.display='flex'
 }
 
@@ -3235,6 +3237,7 @@ async function saveDateFund(e){
     var r=await _sb.from('date_budget_funds').insert({
       id:entry.id,user_id:AU_SB_ID,amount:amt,funded_by:who,note:note||null,fund_date:date
     }).select().single()
+    if(r&&r.error) console.warn('date_budget_funds insert error:',r.error)
     if(r&&r.data&&r.data.id) entry.id=r.data.id
   }
   S.dateBudget.funds.unshift(entry)
@@ -3278,6 +3281,7 @@ async function saveDateCat(e){
       var r2=await _sb.from('date_budget_categories').insert({
         id:newCat.id,user_id:AU_SB_ID,name:name,icon:icon,limit_amount:limit,color:color
       }).select().single()
+      if(r2&&r2.error) console.warn('date_budget_categories insert error:',r2.error)
       if(r2&&r2.data&&r2.data.id) newCat.id=r2.data.id
     }
     S.dateBudget.customCats.push(newCat)
@@ -3322,6 +3326,7 @@ async function saveDateExp(e){
         id:entry.id,user_id:AU_SB_ID,description:desc,amount:amt,
         category_id:catId,paid_by:who,expense_date:date,note:note||null
       }).select().single()
+      if(r3&&r3.error) console.warn('date_budget_expenses insert error:',r3.error)
       if(r3&&r3.data&&r3.data.id) entry.id=r3.data.id
     }
     S.dateBudget.expenses.unshift(entry)
