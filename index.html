@@ -3101,6 +3101,16 @@ async function saveGoal(e){
 async function delGoal(gid){if(SB_READY&&AU_SB_ID)await sbDeleteGoal(gid);S.goals=S.goals.filter(g=>g.id!==gid);toast('Goal deleted 🗑️');renderShared()}
 
 // ─── MONTHLY DATE BUDGET ─────────────────────────────────
+// Generate proper UUID v4 for Supabase (id column is uuid type)
+function dbUid(){
+  if(typeof crypto!=='undefined'&&crypto.randomUUID) return crypto.randomUUID()
+  // Fallback UUID v4
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){
+    var r=Math.random()*16|0, v=c==='x'?r:(r&0x3|0x8)
+    return v.toString(16)
+  })
+}
+
 // Follows the EXACT same pattern as saveSavCat / renderISavings
 
 const DB_DEFAULT_CATS=[
@@ -3232,7 +3242,7 @@ async function saveDateFund(e){
   var note=(document.getElementById('df-note').value||'').trim()
   var date=document.getElementById('df-date').value||tod()
   if(!amt||amt<=0){showErr('df-err','Enter a valid amount');return}
-  var entry={id:uid(),amt:amt,who:who,note:note,date:date}
+  var entry={id:dbUid(),amt:amt,who:who,note:note,date:date}
   if(SB_READY&&AU_SB_ID){
     var res=await _sb.from('date_budget_funds').insert({
       id:entry.id,user_id:AU_SB_ID,amount:amt,funded_by:who,
@@ -3280,7 +3290,7 @@ async function saveDateCat(e){
     toast('Category updated ✏️')
   }else{
     // New custom cat
-    var newCat={id:uid(),name:name,icon:icon,limit:limit,color:color}
+    var newCat={id:dbUid(),name:name,icon:icon,limit:limit,color:color}
     if(SB_READY&&AU_SB_ID){
       var res2=await _sb.from('date_budget_categories').insert({
         id:newCat.id,user_id:AU_SB_ID,name:name,icon:icon,limit_amount:limit,color:color
@@ -3327,7 +3337,7 @@ async function saveDateExp(e){
     }
     toast('Expense updated ✏️')
   }else{
-    var entry={id:uid(),desc:desc,amt:amt,catId:catId,who:who,date:date,note:note}
+    var entry={id:dbUid(),desc:desc,amt:amt,catId:catId,who:who,date:date,note:note}
     if(SB_READY&&AU_SB_ID){
       var res3=await _sb.from('date_budget_expenses').insert({
         id:entry.id,user_id:AU_SB_ID,description:desc,amount:amt,
