@@ -3233,15 +3233,16 @@ async function saveDateFund(e){
   var date=document.getElementById('df-date').value||tod()
   if(!amt||amt<=0){showErr('df-err','Enter a valid amount');return}
   var entry={id:uid(),amt:amt,who:who,note:note,date:date}
+  if(SB_READY&&AU_SB_ID){
+    var res=await _sb.from('date_budget_funds').insert({
+      id:entry.id,user_id:AU_SB_ID,amount:amt,funded_by:who,
+      note:note||null,fund_date:date
+    })
+    if(res.error){console.error('fund insert error:',res.error);showErr('df-err','DB error: '+res.error.message);return}
+    if(res.data&&res.data[0]&&res.data[0].id) entry.id=res.data[0].id
+  }
   S.dateBudget.funds.unshift(entry)
   dbSave()
-  // Sync to Supabase in background (non-blocking)
-  if(SB_READY&&AU_SB_ID){
-    _sb.from('date_budget_funds').upsert({
-      id:entry.id,user_id:AU_SB_ID,amount:entry.amt,funded_by:entry.who,
-      note:entry.note||null,fund_date:entry.date
-    }).then(function(r){if(r&&r.error)console.warn('fund upsert:',r.error)})
-  }
   cm('m-dateFund')
   toast(P(amt)+' added to date fund! 💰')
   renderDateBudget()
@@ -3271,19 +3272,24 @@ async function saveDateCat(e){
         S.dateBudget.customCats[idx].limit=limit
         S.dateBudget.customCats[idx].color=color
       }
-      if(SB_READY&&AU_SB_ID)_sb.from('date_budget_categories').upsert({id:eid,user_id:AU_SB_ID,name:name,icon:icon,limit_amount:limit,color:color}).then(function(r){if(r&&r.error)console.warn('cat update:',r.error)})
+      if(SB_READY&&AU_SB_ID){
+        var cup=await _sb.from('date_budget_categories').update({name:name,icon:icon,limit_amount:limit,color:color}).eq('id',eid)
+        if(cup.error) console.error('cat update error:',cup.error)
+      }
     }
     toast('Category updated ✏️')
   }else{
-    // New custom cat - push locally first, then sync to SB
+    // New custom cat
     var newCat={id:uid(),name:name,icon:icon,limit:limit,color:color}
+    if(SB_READY&&AU_SB_ID){
+      var res2=await _sb.from('date_budget_categories').insert({
+        id:newCat.id,user_id:AU_SB_ID,name:name,icon:icon,limit_amount:limit,color:color
+      })
+      if(res2.error){console.error('cat insert error:',res2.error);showErr('dc-err','DB error: '+res2.error.message);return}
+      if(res2.data&&res2.data[0]&&res2.data[0].id) newCat.id=res2.data[0].id
+    }
     S.dateBudget.customCats.push(newCat)
     toast('"'+name+'" added! 🏷️')
-    if(SB_READY&&AU_SB_ID){
-      _sb.from('date_budget_categories').insert({
-        id:newCat.id,user_id:AU_SB_ID,name:name,icon:icon,limit_amount:limit,color:color
-      }).then(function(r){if(r&&r.error)console.warn('cat insert error:',r.error)})
-    }
   }
   dbSave()
   cm('m-dateCat')
@@ -3313,22 +3319,25 @@ async function saveDateExp(e){
         break
       }
     }
-    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_expenses').upsert({
-      id:eid,user_id:AU_SB_ID,description:desc,amount:amt,
-      category_id:catId,paid_by:who,expense_date:date,note:note||null
-    }).then(function(r){if(r&&r.error)console.warn('exp update:',r.error)})
+    if(SB_READY&&AU_SB_ID){
+      var upd=await _sb.from('date_budget_expenses').update({
+        description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note:note||null
+      }).eq('id',eid)
+      if(upd.error) console.error('exp update error:',upd.error)
+    }
     toast('Expense updated ✏️')
   }else{
     var entry={id:uid(),desc:desc,amt:amt,catId:catId,who:who,date:date,note:note}
-    S.dateBudget.expenses.unshift(entry)
-    toast('"'+desc+'" added! 💕')
-    // Sync to Supabase in background
     if(SB_READY&&AU_SB_ID){
-      _sb.from('date_budget_expenses').upsert({
+      var res3=await _sb.from('date_budget_expenses').insert({
         id:entry.id,user_id:AU_SB_ID,description:desc,amount:amt,
         category_id:catId,paid_by:who,expense_date:date,note:note||null
-      }).then(function(r){if(r&&r.error)console.warn('exp upsert:',r.error)})
+      })
+      if(res3.error){console.error('exp insert error:',res3.error);showErr('de-err','DB error: '+res3.error.message);return}
+      if(res3.data&&res3.data[0]&&res3.data[0].id) entry.id=res3.data[0].id
     }
+    S.dateBudget.expenses.unshift(entry)
+    toast('"'+desc+'" added! 💕')
   }
   dbSave()
   cm('m-dateExp')
