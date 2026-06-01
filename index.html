@@ -3141,14 +3141,12 @@ function dbSave(){
 }
 function dbGetCats(){
   const hidden=S.dateBudget.hidden||[]
-  const ov=S.dateBudget.overrides||{}
-  // Default cats (with overrides applied), filtered by hidden
-  const defaults=DB_DEFAULT_CATS
-    .filter(c=>!hidden.includes(c.id))
-    .map(c=>ov[c.id]?Object.assign({},c,ov[c.id]):c)
-  // Custom (user-created) cats
-  const custom=(S.dateBudget.customCats||[])
-  return defaults.concat(custom)
+  const allCats=S.dateBudget.customCats||[]
+  // If DB hasn't loaded yet, fallback to hardcoded defaults
+  if(allCats.length===0){
+    return DB_DEFAULT_CATS.filter(c=>!hidden.includes(c.id))
+  }
+  return allCats.filter(c=>!hidden.includes(c.id))
 }
 function dbCatSpent(cid){
   return (S.dateBudget.expenses||[]).filter(function(e){return e.catId===cid}).reduce(function(s,e){return s+(+e.amt||0)},0)
@@ -3266,26 +3264,22 @@ async function saveDateCat(e){
   var color=document.getElementById('dc-color').value||'#e91e8c'
   if(!name){showErr('dc-err','Enter a category name');return}
   if(eid){
-    // Edit existing
-    if(eid.startsWith('dbc-')){
-      // Override a default cat
-      if(!S.dateBudget.overrides) S.dateBudget.overrides={}
-      S.dateBudget.overrides[eid]={name:name,icon:icon,limit:limit,color:color}
-    }else{
-      var idx=-1
-      for(var i=0;i<S.dateBudget.customCats.length;i++){
-        if(S.dateBudget.customCats[i].id===eid){idx=i;break}
-      }
-      if(idx>-1){
-        S.dateBudget.customCats[idx].name=name
-        S.dateBudget.customCats[idx].icon=icon
-        S.dateBudget.customCats[idx].limit=limit
-        S.dateBudget.customCats[idx].color=color
-      }
-      if(SB_READY&&AU_SB_ID){
-        var cup=await _sb.from('date_budget_categories').update({name:name,icon:icon,limit_amount:limit,color:color}).eq('id',eid)
-        if(cup.error) console.error('cat update error:',cup.error)
-      }
+    // Edit existing — all cats are in customCats now (seeded from DB)
+    var idx=-1
+    for(var i=0;i<S.dateBudget.customCats.length;i++){
+      if(S.dateBudget.customCats[i].id===eid){idx=i;break}
+    }
+    if(idx>-1){
+      S.dateBudget.customCats[idx].name=name
+      S.dateBudget.customCats[idx].icon=icon
+      S.dateBudget.customCats[idx].limit=limit
+      S.dateBudget.customCats[idx].color=color
+    }
+    if(SB_READY&&AU_SB_ID){
+      var cup=await _sb.from('date_budget_categories').update({
+        name:name,icon:icon,limit_amount:limit,color:color
+      }).eq('id',eid)
+      if(cup.error) console.error('cat update error:',cup.error)
     }
     toast('Category updated ✏️')
   }else{
@@ -3357,13 +3351,11 @@ async function saveDateExp(e){
 // ── DELETE (same pattern as deleteSavCat / deleteSavEntry2) ─────────────────
 async function deleteDateCat(cid){
   if(!confirm('Delete this category?')) return
-  if(cid.startsWith('dbc-')){
-    if(!S.dateBudget.hidden) S.dateBudget.hidden=[]
-    if(S.dateBudget.hidden.indexOf(cid)<0) S.dateBudget.hidden.push(cid)
-    if(S.dateBudget.overrides) delete S.dateBudget.overrides[cid]
-  }else{
-    S.dateBudget.customCats=(S.dateBudget.customCats||[]).filter(function(c){return c.id!==cid})
-    if(SB_READY&&AU_SB_ID) await _sb.from('date_budget_categories').delete().eq('id',cid)
+  // All cats are now in customCats (seeded from DB), so always delete from DB
+  S.dateBudget.customCats=(S.dateBudget.customCats||[]).filter(function(c){return c.id!==cid})
+  if(SB_READY&&AU_SB_ID){
+    var dr=await _sb.from('date_budget_categories').delete().eq('id',cid)
+    if(dr.error) console.error('cat delete error:',dr.error)
   }
   dbSave()
   toast('Category removed 🗑️')
@@ -3564,12 +3556,43 @@ async function loadDateBudgetFromSB(){
     var cr=await _sb.from('date_budget_categories').select('*').order('created_at')
     var er=await _sb.from('date_budget_expenses').select('*').order('expense_date',{ascending:false})
     var fr=await _sb.from('date_budget_funds').select('*').order('fund_date',{ascending:false})
-    if(!cr.error) S.dateBudget.customCats=(cr.data||[]).map(function(c){return{id:c.id,name:c.name,icon:c.icon||'💕',limit:+(c.limit_amount)||0,color:c.color||'#e91e8c'}})
+
+    if(!cr.error){
+      var dbRows=cr.data||[]
+      // If no categories exist in DB yet, seed the defaults for this user
+      if(dbRows.length===0){
+        await dbSeedDefaultCats()
+        // Re-fetch after seeding
+        var cr2=await _sb.from('date_budget_categories').select('*').order('created_at')
+        dbRows=cr2.data||[]
+      }
+      // All categories (default + custom) come from DB now
+      S.dateBudget.customCats=dbRows.map(function(c){
+        return{id:c.id,name:c.name,icon:c.icon||'💕',limit:+(c.limit_amount)||0,color:c.color||'#e91e8c'}
+      })
+    }
     if(!er.error) S.dateBudget.expenses=(er.data||[]).map(function(e){return{id:e.id,desc:e.description,amt:+(e.amount)||0,catId:e.category_id||'dbc-other',who:e.paid_by||'u1',date:e.expense_date,note:e.note||''}})
     if(!fr.error) S.dateBudget.funds=(fr.data||[]).map(function(f){return{id:f.id,amt:+(f.amount)||0,who:f.funded_by||'u1',note:f.note||'',date:f.fund_date}})
     dbSave()
-    console.log('Date budget loaded from Supabase:',S.dateBudget.expenses.length,'expenses,',S.dateBudget.funds.length,'funds')
-  }catch(err){}
+    console.log('Date budget loaded:',S.dateBudget.customCats.length,'cats,',S.dateBudget.expenses.length,'expenses,',S.dateBudget.funds.length,'funds')
+  }catch(err){console.error('loadDateBudgetFromSB error:',err)}
+}
+
+async function dbSeedDefaultCats(){
+  // Seed all 6 default categories into Supabase for this user (runs once on first login)
+  var toInsert=DB_DEFAULT_CATS.map(function(c){
+    return{
+      id:dbUid(),
+      user_id:AU_SB_ID,
+      name:c.name,
+      icon:c.icon,
+      color:c.color,
+      limit_amount:0
+    }
+  })
+  var res=await _sb.from('date_budget_categories').insert(toInsert)
+  if(res.error) console.error('dbSeedDefaultCats error:',res.error)
+  else console.log('✅ Default date budget categories seeded to Supabase')
 }
 
 
