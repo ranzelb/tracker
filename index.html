@@ -3233,15 +3233,15 @@ async function saveDateFund(e){
   var date=document.getElementById('df-date').value||tod()
   if(!amt||amt<=0){showErr('df-err','Enter a valid amount');return}
   var entry={id:uid(),amt:amt,who:who,note:note,date:date}
-  if(SB_READY&&AU_SB_ID){
-    var r=await _sb.from('date_budget_funds').insert({
-      id:entry.id,user_id:AU_SB_ID,amount:amt,funded_by:who,note:note||null,fund_date:date
-    }).select().single()
-    if(r&&r.error) console.warn('date_budget_funds insert error:',r.error)
-    if(r&&r.data&&r.data.id) entry.id=r.data.id
-  }
   S.dateBudget.funds.unshift(entry)
   dbSave()
+  // Sync to Supabase in background (non-blocking)
+  if(SB_READY&&AU_SB_ID){
+    _sb.from('date_budget_funds').upsert({
+      id:entry.id,user_id:AU_SB_ID,amount:entry.amt,funded_by:entry.who,
+      note:entry.note||null,fund_date:entry.date
+    }).then(function(r){if(r&&r.error)console.warn('fund upsert:',r.error)})
+  }
   cm('m-dateFund')
   toast(P(amt)+' added to date fund! 💰')
   renderDateBudget()
@@ -3271,21 +3271,19 @@ async function saveDateCat(e){
         S.dateBudget.customCats[idx].limit=limit
         S.dateBudget.customCats[idx].color=color
       }
-      if(SB_READY&&AU_SB_ID)_sb.from('date_budget_categories').update({name:name,icon:icon,limit_amount:limit,color:color}).eq('id',eid).catch(function(){})
+      if(SB_READY&&AU_SB_ID)_sb.from('date_budget_categories').upsert({id:eid,user_id:AU_SB_ID,name:name,icon:icon,limit_amount:limit,color:color}).then(function(r){if(r&&r.error)console.warn('cat update:',r.error)})
     }
     toast('Category updated ✏️')
   }else{
-    // New custom cat
+    // New custom cat - push locally first, then sync to SB
     var newCat={id:uid(),name:name,icon:icon,limit:limit,color:color}
-    if(SB_READY&&AU_SB_ID){
-      var r2=await _sb.from('date_budget_categories').insert({
-        id:newCat.id,user_id:AU_SB_ID,name:name,icon:icon,limit_amount:limit,color:color
-      }).select().single()
-      if(r2&&r2.error) console.warn('date_budget_categories insert error:',r2.error)
-      if(r2&&r2.data&&r2.data.id) newCat.id=r2.data.id
-    }
     S.dateBudget.customCats.push(newCat)
     toast('"'+name+'" added! 🏷️')
+    if(SB_READY&&AU_SB_ID){
+      _sb.from('date_budget_categories').insert({
+        id:newCat.id,user_id:AU_SB_ID,name:name,icon:icon,limit_amount:limit,color:color
+      }).then(function(r){if(r&&r.error)console.warn('cat insert error:',r.error)})
+    }
   }
   dbSave()
   cm('m-dateCat')
@@ -3315,22 +3313,22 @@ async function saveDateExp(e){
         break
       }
     }
-    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_expenses').update({
-      description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note:note||null
-    }).eq('id',eid).catch(function(){})
+    if(SB_READY&&AU_SB_ID)_sb.from('date_budget_expenses').upsert({
+      id:eid,user_id:AU_SB_ID,description:desc,amount:amt,
+      category_id:catId,paid_by:who,expense_date:date,note:note||null
+    }).then(function(r){if(r&&r.error)console.warn('exp update:',r.error)})
     toast('Expense updated ✏️')
   }else{
     var entry={id:uid(),desc:desc,amt:amt,catId:catId,who:who,date:date,note:note}
-    if(SB_READY&&AU_SB_ID){
-      var r3=await _sb.from('date_budget_expenses').insert({
-        id:entry.id,user_id:AU_SB_ID,description:desc,amount:amt,
-        category_id:catId,paid_by:who,expense_date:date,note:note||null
-      }).select().single()
-      if(r3&&r3.error) console.warn('date_budget_expenses insert error:',r3.error)
-      if(r3&&r3.data&&r3.data.id) entry.id=r3.data.id
-    }
     S.dateBudget.expenses.unshift(entry)
     toast('"'+desc+'" added! 💕')
+    // Sync to Supabase in background
+    if(SB_READY&&AU_SB_ID){
+      _sb.from('date_budget_expenses').upsert({
+        id:entry.id,user_id:AU_SB_ID,description:desc,amount:amt,
+        category_id:catId,paid_by:who,expense_date:date,note:note||null
+      }).then(function(r){if(r&&r.error)console.warn('exp upsert:',r.error)})
+    }
   }
   dbSave()
   cm('m-dateExp')
@@ -3378,19 +3376,14 @@ function dbClickEditExp(btn){openDateExpEdit(null,btn.dataset.eid)}
 function dbClickDelExp(btn){deleteDateExp(btn.dataset.eid)}
 function dbClickDelFund(btn){deleteDateFund(btn.dataset.fid)}
 function renderDateBudget(){
-  // Always reload from localStorage first
-  try{
-    var raw=localStorage.getItem('rk_db_v1')
-    if(raw){
-      var p=JSON.parse(raw)
-      S.dateBudget=p
-      if(!S.dateBudget.customCats) S.dateBudget.customCats=[]
-      if(!S.dateBudget.overrides)  S.dateBudget.overrides={}
-      if(!S.dateBudget.expenses)   S.dateBudget.expenses=[]
-      if(!S.dateBudget.funds)      S.dateBudget.funds=[]
-      if(!S.dateBudget.hidden)     S.dateBudget.hidden=[]
-    }
-  }catch(ex){}
+  // Ensure state is initialized (never reload from localStorage here - 
+  // that would overwrite in-memory changes made by save functions)
+  if(!S.dateBudget) S.dateBudget={}
+  if(!S.dateBudget.customCats) S.dateBudget.customCats=[]
+  if(!S.dateBudget.overrides)  S.dateBudget.overrides={}
+  if(!S.dateBudget.expenses)   S.dateBudget.expenses=[]
+  if(!S.dateBudget.funds)      S.dateBudget.funds=[]
+  if(!S.dateBudget.hidden)     S.dateBudget.hidden=[]
 
   var total=dbTotalFunds(), spent=dbTotalSpent(), rem=Math.max(0,total-spent)
   var cats=dbGetCats()
@@ -3552,10 +3545,11 @@ async function loadDateBudgetFromSB(){
     var cr=await _sb.from('date_budget_categories').select('*').order('created_at')
     var er=await _sb.from('date_budget_expenses').select('*').order('expense_date',{ascending:false})
     var fr=await _sb.from('date_budget_funds').select('*').order('fund_date',{ascending:false})
-    if(cr.data&&cr.data.length) S.dateBudget.customCats=cr.data.map(function(c){return{id:c.id,name:c.name,icon:c.icon||'💕',limit:+(c.limit_amount)||0,color:c.color||'#e91e8c'}})
-    if(er.data&&er.data.length) S.dateBudget.expenses=er.data.map(function(e){return{id:e.id,desc:e.description,amt:+(e.amount)||0,catId:e.category_id||'dbc-other',who:e.paid_by||'u1',date:e.expense_date,note:e.note||''}})
-    if(fr.data&&fr.data.length) S.dateBudget.funds=fr.data.map(function(f){return{id:f.id,amt:+(f.amount)||0,who:f.funded_by||'u1',note:f.note||'',date:f.fund_date}})
+    if(!cr.error) S.dateBudget.customCats=(cr.data||[]).map(function(c){return{id:c.id,name:c.name,icon:c.icon||'💕',limit:+(c.limit_amount)||0,color:c.color||'#e91e8c'}})
+    if(!er.error) S.dateBudget.expenses=(er.data||[]).map(function(e){return{id:e.id,desc:e.description,amt:+(e.amount)||0,catId:e.category_id||'dbc-other',who:e.paid_by||'u1',date:e.expense_date,note:e.note||''}})
+    if(!fr.error) S.dateBudget.funds=(fr.data||[]).map(function(f){return{id:f.id,amt:+(f.amount)||0,who:f.funded_by||'u1',note:f.note||'',date:f.fund_date}})
     dbSave()
+    console.log('Date budget loaded from Supabase:',S.dateBudget.expenses.length,'expenses,',S.dateBudget.funds.length,'funds')
   }catch(err){}
 }
 
