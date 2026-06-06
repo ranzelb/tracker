@@ -1137,10 +1137,14 @@ tbody tr:hover td{background:var(--bg3)}
 <!-- ══════════ MONTHLY DATE BUDGET ══════════ -->
 <div class="page" id="page-datebudget">
   <div class="phd">
-    <div><div class="ptitle">Monthly Date Budget 💑</div><div class="psub">Shared budget for your dates &amp; relationship activities</div></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <div>
+      <div class="ptitle" id="db-period-title">Monthly Date Budget 💑</div>
+      <div class="psub" id="db-period-sub">Shared budget for your dates &amp; relationship activities</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-p" style="background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" onclick="openDateFund(event)" id="db-add-fund-btn">💰 Add Funds</button>
       <button class="btn btn-p" id="db-add-cat-btn" onclick="openDateCatModal()">+ Category</button>
+      <button class="btn btn-p" style="background:linear-gradient(135deg,#9c27b0,#6a1b9a);border:none" onclick="openDatePeriod()">📅 Period</button>
     </div>
   </div>
 
@@ -1170,6 +1174,15 @@ tbody tr:hover td{background:var(--bg3)}
   <div class="card" style="margin-top:14px">
     <div class="chd"><span class="ctitle">💸 Fund History</span><span class="badge bg" id="db-fund-cnt">0 entries</span></div>
     <div id="db-fund-list"></div>
+  </div>
+
+  <!-- Monthly Budget History -->
+  <div class="card" style="margin-top:14px" id="db-history-card">
+    <div class="chd">
+      <span class="ctitle">📚 Monthly Budget History</span>
+      <span class="badge bi" id="db-history-cnt">0 periods</span>
+    </div>
+    <div id="db-history-list"></div>
   </div>
 </div>
 
@@ -1474,6 +1487,55 @@ tbody tr:hover td{background:var(--bg3)}
 
 <!-- Add/Edit Savings -->
 <!-- ══════════ DATE BUDGET MODALS ══════════ -->
+
+<!-- Set Period modal -->
+<div class="overlay" id="m-datePeriod" style="display:none" onclick="obg(event,'m-datePeriod')">
+  <div class="modal" style="max-width:420px">
+    <div class="mhd"><div class="mtitle">📅 Set Budget Period</div><button class="mclose" onclick="cm('m-datePeriod')">✕</button></div>
+    <div class="mbody">
+      <div class="fg"><label>Period Name</label>
+        <input type="text" id="dp-name" placeholder="e.g. June 2026"/>
+      </div>
+      <div class="frow">
+        <div class="fg"><label>Start Date</label><input type="date" id="dp-start"/></div>
+        <div class="fg"><label>End Date (Deadline)</label><input type="date" id="dp-end"/></div>
+      </div>
+      <div style="background:rgba(233,30,140,.08);border:1.5px solid rgba(233,30,140,.2);border-radius:10px;padding:12px;font-size:12px;color:var(--txt2);margin-top:8px">
+        💡 When the end date is reached, clicking <strong>Reset for New Period</strong> will archive the current budget and start fresh. Your history is always preserved.
+      </div>
+      <div class="err" id="dp-err" style="display:none"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn" onclick="cm('m-datePeriod')">Cancel</button>
+      <button class="btn btn-d" onclick="resetDatePeriod()" id="dp-reset-btn" style="display:none">🔄 Reset for New Period</button>
+      <button class="btn btn-p" style="background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" onclick="saveDatePeriod()">Save Period</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Fund modal -->
+<div class="overlay" id="m-dateEditFund" style="display:none" onclick="obg(event,'m-dateEditFund')">
+  <div class="modal" style="max-width:380px">
+    <div class="mhd"><div class="mtitle">✏️ Edit Fund Entry</div><button class="mclose" onclick="cm('m-dateEditFund')">✕</button></div>
+    <input type="hidden" id="def-fid"/>
+    <div class="mbody">
+      <div class="fg"><label>Amount (₱)</label><input type="number" id="def-amt" min="0"/></div>
+      <div class="fg"><label>Funded by</label>
+        <select id="def-who">
+          <option value="u1" id="def-who-u1">Me</option>
+          <option value="u2" id="def-who-u2">Partner</option>
+          <option value="both">Both (split)</option>
+        </select>
+      </div>
+      <div class="fg"><label>Note (optional)</label><input type="text" id="def-note"/></div>
+      <div class="fg"><label>Date</label><input type="date" id="def-date"/></div>
+      <div class="err" id="def-err" style="display:none"></div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="cm('m-dateEditFund')">Cancel</button><button class="btn btn-p" onclick="saveEditFund()">Save Changes</button></div>
+  </div>
+</div>
+
+
 
 <!-- Add Funds modal -->
 <div class="overlay" id="m-dateFund" style="display:none" onclick="obg(event,'m-dateFund')">
@@ -3386,15 +3448,19 @@ function dbClickDelCat(btn){deleteDateCat(btn.dataset.cid)}
 function dbClickEditExp(btn){openDateExpEdit(null,btn.dataset.eid)}
 function dbClickDelExp(btn){deleteDateExp(btn.dataset.eid)}
 function dbClickDelFund(btn){deleteDateFund(btn.dataset.fid)}
+function dbClickEditFund(btn){openEditFund(btn.dataset.fid)}
 function renderDateBudget(){
-  // Ensure state is initialized (never reload from localStorage here - 
-  // that would overwrite in-memory changes made by save functions)
+  // Ensure state is initialized
   if(!S.dateBudget) S.dateBudget={}
   if(!S.dateBudget.customCats) S.dateBudget.customCats=[]
   if(!S.dateBudget.overrides)  S.dateBudget.overrides={}
   if(!S.dateBudget.expenses)   S.dateBudget.expenses=[]
   if(!S.dateBudget.funds)      S.dateBudget.funds=[]
   if(!S.dateBudget.hidden)     S.dateBudget.hidden=[]
+  if(!S.dateBudget.history)    S.dateBudget.history=[]
+  // Period title + history
+  dbRefreshPeriodTitle()
+  dbRenderHistory()
 
   var total=dbTotalFunds(), spent=dbTotalSpent(), rem=Math.max(0,total-spent)
   var cats=dbGetCats()
@@ -3538,6 +3604,11 @@ function renderDateBudget(){
             '<div class="ramt" style="color:var(--teal)">+'+P(fd.amt)+'</div>'+
             '<div class="racts"></div>'+
           '</div>'
+        var editFundBtn=document.createElement('button')
+        editFundBtn.className='btn btn-xs btn-g'
+        editFundBtn.textContent='✏️'
+        editFundBtn.onclick=(function(id){return function(){openEditFund(id)}})(fd.id)
+        row.querySelector('.racts').appendChild(editFundBtn)
         var delBtn=document.createElement('button')
         delBtn.className='btn btn-xs btn-d'
         delBtn.textContent='🗑️'
@@ -3548,6 +3619,191 @@ function renderDateBudget(){
     }
   }
 }
+
+// ── PERIOD / HISTORY / EDIT FUND ────────────────────────────
+
+function dbGetPeriod(){
+  return S.dateBudget.period||null
+}
+function dbGetHistory(){
+  return S.dateBudget.history||[]
+}
+
+// Update period subtitle
+function dbRefreshPeriodTitle(){
+  const p=dbGetPeriod()
+  const titleEl=document.getElementById('db-period-title')
+  const subEl=document.getElementById('db-period-sub')
+  if(p&&p.name){
+    if(titleEl) titleEl.textContent='Monthly Date Budget 💑 — '+p.name
+    const today=tod()
+    const isOverdue=p.end&&today>p.end
+    if(subEl) subEl.textContent=p.start&&p.end
+      ?'Period: '+fmtD(p.start)+' → '+fmtD(p.end)+(isOverdue?' ⚠️ Period ended — reset when ready':'')
+      :'Active period: '+p.name
+  } else {
+    if(titleEl) titleEl.textContent='Monthly Date Budget 💑'
+    if(subEl) subEl.textContent='Shared budget for your dates & relationship activities'
+  }
+}
+
+// Render history section
+function dbRenderHistory(){
+  const hist=dbGetHistory()
+  const cntEl=document.getElementById('db-history-cnt')
+  const listEl=document.getElementById('db-history-list')
+  if(cntEl) cntEl.textContent=hist.length+' period'+(hist.length!==1?'s':'')
+  const card=document.getElementById('db-history-card')
+  if(card) card.style.display=hist.length===0?'none':'block'
+  if(!listEl) return
+  if(!hist.length){listEl.innerHTML='';return}
+  listEl.innerHTML=[...hist].reverse().map(function(h){
+    const rem=Math.max(0,(h.totalFunds||0)-(h.totalSpent||0))
+    return '<div style="border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;background:var(--bg2)">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">'
+        +'<div><div style="font-size:14px;font-weight:700;color:var(--pink)">'+esc(h.name||'Unnamed Period')+'</div>'
+        +'<div style="font-size:11px;color:var(--txt3)">'+(h.start?fmtD(h.start):'')+(h.end?' → '+fmtD(h.end):'')+'</div></div>'
+        +'<span style="font-size:11px;color:var(--txt3)">Archived '+fmtD(h.archivedAt||h.end||'')+'</span>'
+      +'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'
+        +'<div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
+          +'<div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px">Funds</div>'
+          +'<div style="font-size:15px;font-weight:800;color:var(--pink)">'+P(h.totalFunds||0)+'</div></div>'
+        +'<div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
+          +'<div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px">Spent</div>'
+          +'<div style="font-size:15px;font-weight:800;color:var(--danger)">'+P(h.totalSpent||0)+'</div></div>'
+        +'<div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
+          +'<div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px">Saved</div>'
+          +'<div style="font-size:15px;font-weight:800;color:var(--teal)">'+P(rem)+'</div></div>'
+      +'</div>'
+      +'<div style="font-size:11px;color:var(--txt3);margin-top:8px">'
+        +((h.expenses||0)+' expense'+(h.expenses!==1?'s':'')+' · '+(h.funds||0)+' fund entr'+(h.funds!==1?'ies':'y'))
+      +'</div>'
+    +'</div>'
+  }).join('')
+}
+
+// Open Set Period modal
+function openDatePeriod(){
+  const p=dbGetPeriod()||{}
+  document.getElementById('dp-name').value=p.name||''
+  document.getElementById('dp-start').value=p.start||tod()
+  document.getElementById('dp-end').value=p.end||''
+  document.getElementById('dp-err').style.display='none'
+  // Show Reset button only if a period is active
+  var resetBtn=document.getElementById('dp-reset-btn')
+  if(resetBtn) resetBtn.style.display=p.name?'inline-flex':'none'
+  document.getElementById('m-datePeriod').style.display='flex'
+}
+
+// Save period settings
+async function saveDatePeriod(){
+  var name=(document.getElementById('dp-name').value||'').trim()
+  var start=document.getElementById('dp-start').value||tod()
+  var end=document.getElementById('dp-end').value||''
+  if(!name){document.getElementById('dp-err').textContent='Enter a period name';document.getElementById('dp-err').style.display='block';return}
+  if(!S.dateBudget.period) S.dateBudget.period={}
+  S.dateBudget.period.name=name
+  S.dateBudget.period.start=start
+  S.dateBudget.period.end=end
+  dbSave()
+  // Sync to Supabase
+  if(SB_READY&&AU_SB_ID){
+    await _sb.from('date_budget_periods').upsert({
+      id:S.dateBudget.period.id||dbUid(),
+      user_id:AU_SB_ID,name:name,start_date:start,
+      end_date:end||null,is_active:true
+    }).catch(function(){})
+  }
+  cm('m-datePeriod')
+  toast('Period "'+name+'" saved! 📅')
+  dbRefreshPeriodTitle()
+  renderDateBudget()
+}
+
+// Reset / archive current period and start fresh
+async function resetDatePeriod(){
+  var p=dbGetPeriod()
+  if(!p||!p.name){cm('m-datePeriod');return}
+  if(!confirm('Archive "'+p.name+'" and reset the budget for a new period?\n\nAll current funds, expenses and categories will be moved to History.')) return
+  // Archive current period to history
+  if(!S.dateBudget.history) S.dateBudget.history=[]
+  var snapshot={
+    id:dbUid(),
+    name:p.name,
+    start:p.start,
+    end:p.end,
+    archivedAt:tod(),
+    totalFunds:dbTotalFunds(),
+    totalSpent:dbTotalSpent(),
+    funds:(S.dateBudget.funds||[]).length,
+    expenses:(S.dateBudget.expenses||[]).length
+  }
+  S.dateBudget.history.push(snapshot)
+  // Reset active data
+  S.dateBudget.funds=[]
+  S.dateBudget.expenses=[]
+  // Keep categories but reset period
+  var newName=prompt('Enter name for the new period (e.g. July 2026):')||'New Period'
+  S.dateBudget.period={name:newName,start:tod(),end:''}
+  dbSave()
+  // Sync archive to Supabase
+  if(SB_READY&&AU_SB_ID){
+    await _sb.from('date_budget_history').insert({
+      id:snapshot.id,user_id:AU_SB_ID,period_name:snapshot.name,
+      start_date:snapshot.start,end_date:snapshot.end||null,
+      archived_at:snapshot.archivedAt,total_funds:snapshot.totalFunds,
+      total_spent:snapshot.totalSpent
+    }).catch(function(){})
+    // Clear active funds/expenses in Supabase
+    await _sb.from('date_budget_funds').delete().eq('user_id',AU_SB_ID).catch(function(){})
+    await _sb.from('date_budget_expenses').delete().eq('user_id',AU_SB_ID).catch(function(){})
+  }
+  cm('m-datePeriod')
+  toast('Budget reset! New period "'+newName+'" started 🎉')
+  dbRefreshPeriodTitle()
+  renderDateBudget()
+}
+
+// Edit Fund entry
+function openEditFund(fid){
+  var fd=(S.dateBudget.funds||[]).find(function(f){return f.id===fid}); if(!fd)return
+  document.getElementById('def-fid').value=fid
+  document.getElementById('def-amt').value=fd.amt
+  document.getElementById('def-note').value=fd.note||''
+  document.getElementById('def-date').value=fd.date
+  document.getElementById('def-who').value=fd.who||'u1'
+  var o1=document.getElementById('def-who-u1');if(o1) o1.textContent=USERS.u1.name
+  var o2=document.getElementById('def-who-u2');if(o2) o2.textContent=USERS.u2.name
+  document.getElementById('def-err').style.display='none'
+  document.getElementById('m-dateEditFund').style.display='flex'
+}
+async function saveEditFund(){
+  var fid=document.getElementById('def-fid').value
+  var amt=parseFloat(document.getElementById('def-amt').value)
+  var who=document.getElementById('def-who').value||'u1'
+  var note=(document.getElementById('def-note').value||'').trim()
+  var date=document.getElementById('def-date').value||tod()
+  if(!amt||amt<=0){document.getElementById('def-err').textContent='Enter a valid amount';document.getElementById('def-err').style.display='block';return}
+  var idx=-1
+  for(var i=0;i<(S.dateBudget.funds||[]).length;i++){
+    if(S.dateBudget.funds[i].id===fid){idx=i;break}
+  }
+  if(idx>-1){
+    S.dateBudget.funds[idx].amt=amt
+    S.dateBudget.funds[idx].who=who
+    S.dateBudget.funds[idx].note=note
+    S.dateBudget.funds[idx].date=date
+  }
+  if(SB_READY&&AU_SB_ID){
+    await _sb.from('date_budget_funds').update({amount:amt,funded_by:who,note:note||null,fund_date:date}).eq('id',fid)
+  }
+  dbSave()
+  cm('m-dateEditFund')
+  toast('Fund entry updated ✏️')
+  renderDateBudget()
+}
+
 
 // ── SUPABASE LOAD on login ───────────────────────────────────
 async function loadDateBudgetFromSB(){
@@ -4106,6 +4362,15 @@ function renderISavings(scope){
   const titleEl=document.getElementById(scope==='mine'?'mysavings-title':'partnersavings-title')
   if(titleEl)titleEl.textContent=scope==='mine'?`${u.name}'s Savings 🐱`:`${u.name}'s Savings 🐈`
   if(!el)return
+  // PRIVACY: Partner savings are private — only the partner can see their own savings
+  if(scope==='partner'){
+    el.innerHTML=`<div class="card" style="text-align:center;padding:32px 20px">
+      <div style="font-size:48px;margin-bottom:12px">🔒</div>
+      <div style="font-size:16px;font-weight:700;color:var(--txt);margin-bottom:8px">${u.name}'s Savings are Private</div>
+      <div style="font-size:13px;color:var(--txt3)">Personal savings are only visible to the account owner.<br>Your partner can only see their own savings when they log in.</div>
+    </div>`
+    return
+  }
   const cats=S.savingsCats[uid2]||[]
   const grandTotal=cats.reduce((s,c)=>{
     return s+(c.entries||[]).reduce((x,en)=>x+(en.type==='add'?en.amt:-en.amt),0)
