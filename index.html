@@ -487,6 +487,7 @@ tbody tr:hover td{background:var(--bg3)}
   .g60{grid-template-columns:60fr 40fr}
   .g2{grid-template-columns:1fr 1fr}
   .g3{grid-template-columns:1fr 1fr}
+  #db-history-card,#db-history-list{display:block!important}
 }
 
 /* ═══════════════════════════════════════════════════
@@ -667,6 +668,11 @@ tbody tr:hover td{background:var(--bg3)}
   .tut{font-size:11px;padding:5px 9px}
   .cdchip{padding:7px 11px;margin-bottom:8px}
   .cd-num{font-size:20px}
+  #db-period-chip .card-sm{margin-bottom:10px}
+  #db-history-card{display:block!important}
+  #db-history-list>div{padding:12px 14px!important}
+  #db-history-list .ramt{font-size:13px!important}
+  #db-history-list>div>div:nth-child(2)>div{grid-template-columns:1fr 1fr!important;gap:6px}
   .sched-item{flex-wrap:wrap}
   .sched-time{min-width:100%;font-size:11px}
   /* Past summaries */
@@ -1147,6 +1153,9 @@ tbody tr:hover td{background:var(--bg3)}
       <button class="btn btn-p" style="background:linear-gradient(135deg,#9c27b0,#6a1b9a);border:none" onclick="openDatePeriod()">📅 Period</button>
     </div>
   </div>
+
+  <!-- Period deadline chip (like My Budget) -->
+  <div id="db-period-chip"></div>
 
   <!-- Hero stats -->
   <div class="sgrid" id="db-stats"></div>
@@ -3634,16 +3643,55 @@ function dbRefreshPeriodTitle(){
   const p=dbGetPeriod()
   const titleEl=document.getElementById('db-period-title')
   const subEl=document.getElementById('db-period-sub')
-  if(p&&p.name){
-    if(titleEl) titleEl.textContent='Monthly Date Budget 💑 — '+p.name
-    const today=tod()
-    const isOverdue=p.end&&today>p.end
-    if(subEl) subEl.textContent=p.start&&p.end
-      ?'Period: '+fmtD(p.start)+' → '+fmtD(p.end)+(isOverdue?' ⚠️ Period ended — reset when ready':'')
-      :'Active period: '+p.name
-  } else {
+  const chipEl=document.getElementById('db-period-chip')
+  if(!p||!p.name){
     if(titleEl) titleEl.textContent='Monthly Date Budget 💑'
     if(subEl) subEl.textContent='Shared budget for your dates & relationship activities'
+    if(chipEl) chipEl.innerHTML=''
+    return
+  }
+  if(titleEl) titleEl.textContent='Monthly Date Budget 💑'
+  if(subEl) subEl.textContent='Period: '+esc(p.name)+(p.start?' · Started '+fmtD(p.start):'')
+  // Build deadline chip exactly like My Budget tab
+  if(!chipEl) return
+  const total=dbTotalFunds(), spent=dbTotalSpent(), rem=Math.max(0,total-spent)
+  const bp=pct(spent,total||1)
+  if(p.end){
+    const endD=new Date(p.end+'T23:59:59')
+    const now=new Date()
+    const dl=Math.max(0,Math.ceil((endD-now)/864e5))
+    const urg=dl<=5
+    const startD=p.start?new Date(p.start+'T12:00:00'):now
+    const elapsed=Math.max(0,Math.floor((now-startD)/864e5))
+    const dailyAvg=elapsed>0?spent/elapsed:0
+    const totalDays=p.start?Math.max(1,Math.ceil((endD-startD)/864e5)):30
+    const proj=Math.round(dailyAvg*totalDays)
+    chipEl.innerHTML=`
+      <div class="cdchip ${urg?'urg':''}" style="margin-bottom:14px">
+        <div class="cd-num" style="${urg?'color:var(--danger)':'color:var(--pink)'}">${dl}</div>
+        <div class="cd-txt">
+          <strong style="${urg?'color:var(--danger)':''}">days remaining in ${esc(p.name)}</strong><br>
+          <span style="font-size:11px">${fmtD(p.start||tod())} → ${fmtD(p.end)} · Daily avg: ${P(dailyAvg)}/day · Projected: ${P(proj)}</span>
+          ${dl===0?'<br><span style="color:var(--danger);font-weight:700;font-size:12px">⚠️ Period ended — click 📅 Period to reset</span>':''}
+        </div>
+      </div>
+      <div class="card card-sm" style="margin-bottom:14px">
+        <div class="chd" style="margin-bottom:10px">
+          <span class="ctitle">💑 ${esc(p.name)} Budget Progress</span>
+          <span class="badge ${bp>85?'bd':'ba'}">${bp}% used</span>
+        </div>
+        <div class="pw" style="height:12px"><div class="pf ${bp>85?'pfd':'pfp'}" style="width:${bp}%"></div></div>
+        <div class="pmeta"><span>${P(spent)} spent</span><span>${P(rem)} remaining</span></div>
+      </div>`
+  } else {
+    chipEl.innerHTML=`
+      <div class="cdchip" style="margin-bottom:14px">
+        <div class="cd-num">∞</div>
+        <div class="cd-txt">
+          <strong>No deadline set · ${esc(p.name)}</strong><br>
+          <span style="font-size:11px">Started ${fmtD(p.start||tod())} · Click 📅 Period to set a deadline</span>
+        </div>
+      </div>`
   }
 }
 
@@ -3660,21 +3708,21 @@ function dbRenderHistory(){
   listEl.innerHTML=[...hist].reverse().map(function(h){
     const rem=Math.max(0,(h.totalFunds||0)-(h.totalSpent||0))
     return '<div style="border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;background:var(--bg2)">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:4px;margin-bottom:8px">'
         +'<div><div style="font-size:14px;font-weight:700;color:var(--pink)">'+esc(h.name||'Unnamed Period')+'</div>'
         +'<div style="font-size:11px;color:var(--txt3)">'+(h.start?fmtD(h.start):'')+(h.end?' → '+fmtD(h.end):'')+'</div></div>'
-        +'<span style="font-size:11px;color:var(--txt3)">Archived '+fmtD(h.archivedAt||h.end||'')+'</span>'
+        +'<span style="font-size:11px;color:var(--txt3);white-space:nowrap">📦 '+fmtD(h.archivedAt||h.end||'')+'</span>'
       +'</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'
-        +'<div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'
+        +'<div style="flex:1;min-width:80px;background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
           +'<div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px">Funds</div>'
-          +'<div style="font-size:15px;font-weight:800;color:var(--pink)">'+P(h.totalFunds||0)+'</div></div>'
-        +'<div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
+          +'<div style="font-size:14px;font-weight:800;color:var(--pink)">'+P(h.totalFunds||0)+'</div></div>'
+        +'<div style="flex:1;min-width:80px;background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
           +'<div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px">Spent</div>'
-          +'<div style="font-size:15px;font-weight:800;color:var(--danger)">'+P(h.totalSpent||0)+'</div></div>'
-        +'<div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
+          +'<div style="font-size:14px;font-weight:800;color:var(--danger)">'+P(h.totalSpent||0)+'</div></div>'
+        +'<div style="flex:1;min-width:80px;background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
           +'<div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px">Saved</div>'
-          +'<div style="font-size:15px;font-weight:800;color:var(--teal)">'+P(rem)+'</div></div>'
+          +'<div style="font-size:14px;font-weight:800;color:var(--teal)">'+P(rem)+'</div></div>'
       +'</div>'
       +'<div style="font-size:11px;color:var(--txt3);margin-top:8px">'
         +((h.expenses||0)+' expense'+(h.expenses!==1?'s':'')+' · '+(h.funds||0)+' fund entr'+(h.funds!==1?'ies':'y'))
@@ -3829,6 +3877,23 @@ async function loadDateBudgetFromSB(){
     }
     if(!er.error) S.dateBudget.expenses=(er.data||[]).map(function(e){return{id:e.id,desc:e.description,amt:+(e.amount)||0,catId:e.category_id||'dbc-other',who:e.paid_by||'u1',date:e.expense_date,note:e.note||''}})
     if(!fr.error) S.dateBudget.funds=(fr.data||[]).map(function(f){return{id:f.id,amt:+(f.amount)||0,who:f.funded_by||'u1',note:f.note||'',date:f.fund_date}})
+    // Load history from Supabase
+    try{
+      var hr=await _sb.from('date_budget_history').select('*').order('created_at',{ascending:false})
+      if(!hr.error&&hr.data) S.dateBudget.history=(hr.data||[]).map(function(h){
+        return{id:h.id,name:h.period_name,start:h.start_date,end:h.end_date,
+          archivedAt:h.archived_at,totalFunds:+h.total_funds||0,totalSpent:+h.total_spent||0,
+          funds:0,expenses:0}
+      })
+    }catch(e){}
+    // Load active period
+    try{
+      var pr=await _sb.from('date_budget_periods').select('*').eq('is_active',true).order('created_at',{ascending:false}).limit(1)
+      if(!pr.error&&pr.data&&pr.data.length){
+        var pd=pr.data[0]
+        S.dateBudget.period={id:pd.id,name:pd.name,start:pd.start_date,end:pd.end_date||''}
+      }
+    }catch(e){}
     dbSave()
     console.log('Date budget loaded:',S.dateBudget.customCats.length,'cats,',S.dateBudget.expenses.length,'expenses,',S.dateBudget.funds.length,'funds')
   }catch(err){console.error('loadDateBudgetFromSB error:',err)}
