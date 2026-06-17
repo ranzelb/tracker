@@ -759,6 +759,23 @@ tbody tr:hover td{background:var(--bg3)}
 <body>
 <!-- Falling petals background -->
 <div class="petals-canvas" id="petalsCanvas" aria-hidden="true"></div>
+<!-- Toast notification container -->
+<div id="toastWrap" style="position:fixed;bottom:24px;right:24px;z-index:9990;display:flex;flex-direction:column;gap:8px;align-items:flex-end"></div>
+<!-- Auth overlay (sign in / sign up) -->
+<div id="authOverlay" style="display:none;position:fixed;inset:0;z-index:9980;background:var(--bg1, #1a1320);align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:20px">
+  <div style="font-size:38px">💑</div>
+  <div style="font-size:20px;font-weight:700;color:var(--pink,#e91e8c)">RK Paw Budget</div>
+  <div class="modal" style="position:static;width:100%;max-width:360px">
+    <div class="mtitle" id="auth-title">Sign In</div>
+    <div class="fg"><label>Email</label><input id="auth-email" type="email" placeholder="you@example.com"/></div>
+    <div class="fg"><label>Password</label><input id="auth-pass" type="password" placeholder="••••••••"/></div>
+    <div class="err" id="auth-err"></div>
+    <div class="mfoot" style="justify-content:space-between">
+      <button class="btn" id="auth-switch-btn" onclick="toggleAuthMode()">Need an account? Sign Up</button>
+      <button class="btn btn-p" id="auth-submit-btn" onclick="submitAuth(event)">Sign In</button>
+    </div>
+  </div>
+</div>
 <!-- Mobile drawer backdrop -->
 <div class="mob-bd" id="mobBd" onclick="if(event.target===this)closeMobMenu()"></div>
 <div class="shell">
@@ -1415,6 +1432,7 @@ tbody tr:hover td{background:var(--bg3)}
   </div>
 </div>
 
+
 <!-- Add/Edit Expense -->
 <div class="overlay" id="m-addExp" style="display:none" onclick="obg(event,'m-addExp')">
   <div class="modal"><div class="mtitle" id="exp-mtitle">+ Add Expense</div>
@@ -1499,24 +1517,33 @@ tbody tr:hover td{background:var(--bg3)}
 
 <!-- Set Period modal -->
 <div class="overlay" id="m-datePeriod" style="display:none" onclick="obg(event,'m-datePeriod')">
-  <div class="modal" style="max-width:420px">
-    <div class="mhd"><div class="mtitle">📅 Set Budget Period</div><button class="mclose" onclick="cm('m-datePeriod')">✕</button></div>
+  <div class="modal" style="max-width:440px">
+    <div class="mhd"><div class="mtitle" id="dp-modal-title">📅 Set Budget Period</div><button class="mclose" onclick="cm('m-datePeriod')">✕</button></div>
     <div class="mbody">
       <div class="fg"><label>Period Name</label>
-        <input type="text" id="dp-name" placeholder="e.g. June 2026"/>
+        <input type="text" id="dp-name" placeholder="e.g. June 2026, Summer Date Budget…"/>
       </div>
       <div class="frow">
         <div class="fg"><label>Start Date</label><input type="date" id="dp-start"/></div>
-        <div class="fg"><label>End Date (Deadline)</label><input type="date" id="dp-end"/></div>
+        <div class="fg"><label>Duration (Days)</label><input type="number" id="dp-days" placeholder="e.g. 30" min="1" max="365"/></div>
       </div>
-      <div style="background:rgba(233,30,140,.08);border:1.5px solid rgba(233,30,140,.2);border-radius:10px;padding:12px;font-size:12px;color:var(--txt2);margin-top:8px">
-        💡 When the end date is reached, clicking <strong>Reset for New Period</strong> will archive the current budget and start fresh. Your history is always preserved.
+      <div class="fg" style="margin-top:4px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">
+          <input type="checkbox" id="dp-unlimited" onchange="toggleDPDays(this)" style="width:15px;height:15px;accent-color:var(--pink)"/>
+          <span>No Deadline (unlimited period)</span>
+        </label>
+      </div>
+      <div id="dp-end-info" style="font-size:12px;color:var(--txt3);margin-top:6px;padding:8px 12px;background:var(--bg3);border-radius:8px;display:none">
+        📅 End date: <strong id="dp-end-display">—</strong>
+      </div>
+      <div style="background:rgba(233,30,140,.08);border:1.5px solid rgba(233,30,140,.2);border-radius:10px;padding:12px;font-size:12px;color:var(--txt2);margin-top:10px">
+        💡 When the deadline is reached, click <strong>🔄 Reset for New Period</strong> to archive this budget and start fresh. Your history is always preserved.
       </div>
       <div class="err" id="dp-err" style="display:none"></div>
     </div>
     <div class="mfoot">
       <button class="btn" onclick="cm('m-datePeriod')">Cancel</button>
-      <button class="btn btn-d" onclick="resetDatePeriod()" id="dp-reset-btn" style="display:none">🔄 Reset for New Period</button>
+      <button class="btn btn-d" onclick="resetDatePeriod()" id="dp-reset-btn" style="display:none">🔄 Reset</button>
       <button class="btn btn-p" style="background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" onclick="saveDatePeriod()">Save Period</button>
     </div>
   </div>
@@ -1745,6 +1772,202 @@ const addD=(d,n)=>{const dt=new Date(d+'T12:00:00');dt.setDate(dt.getDate()+n);r
 const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
 const fmtD=d=>{try{return new Date(d+'T12:00:00').toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})}catch{return d}}
 const monthName=d=>{try{return new Date(d+'T12:00:00').toLocaleDateString('en-PH',{month:'long',year:'numeric'})}catch{return d}}
+
+// ─── TOAST NOTIFICATIONS ───────────────────────────────
+function toast(msg,ms){
+  const wrap=document.getElementById('toastWrap')
+  if(!wrap){return}
+  const el=document.createElement('div')
+  el.className='toast'
+  el.style.position='static'
+  el.textContent=msg
+  wrap.appendChild(el)
+  setTimeout(()=>{
+    el.style.transition='opacity .25s,transform .25s'
+    el.style.opacity='0'
+    el.style.transform='translateY(8px) scale(.96)'
+    setTimeout(()=>el.remove(),250)
+  },ms||2200)
+}
+
+// ─── CLICK POP (small heart/sparkle burst at click position) ──
+function CP(e){
+  try{
+    const x=e&&typeof e.clientX==='number'?e.clientX:window.innerWidth/2
+    const y=e&&typeof e.clientY==='number'?e.clientY:window.innerHeight/2
+    const emojis=['💖','✨','💕','⭐']
+    const n=3
+    for(let i=0;i<n;i++){
+      const s=document.createElement('span')
+      s.textContent=emojis[Math.floor(Math.random()*emojis.length)]
+      s.style.position='fixed'
+      s.style.left=(x+(Math.random()*24-12))+'px'
+      s.style.top=(y+(Math.random()*10-5))+'px'
+      s.style.fontSize=(12+Math.random()*8)+'px'
+      s.style.pointerEvents='none'
+      s.style.zIndex='9999'
+      s.style.transition='transform .6s ease-out,opacity .6s ease-out'
+      s.style.opacity='1'
+      document.body.appendChild(s)
+      requestAnimationFrame(()=>{
+        s.style.transform='translateY(-'+(28+Math.random()*18)+'px)'
+        s.style.opacity='0'
+      })
+      setTimeout(()=>s.remove(),650)
+    }
+  }catch(err){}
+}
+
+// ═══════════════ SUPABASE SETUP ═══════════════
+// ⚠️ Replace these with your actual Supabase project values
+// (Project Settings → API → Project URL / anon public key)
+const SUPABASE_URL='https://YOUR-PROJECT-REF.supabase.co'
+const SUPABASE_ANON_KEY='YOUR-ANON-PUBLIC-KEY'
+
+let _sb=null
+let SB_READY=false
+let AU_SB_ID=null
+let AU_PARTNER_ID=null
+
+;(function initSupabase(){
+  try{
+    if(typeof window.supabase==='undefined'){
+      console.warn('Supabase library not loaded')
+      return
+    }
+    if(SUPABASE_URL.indexOf('YOUR-PROJECT-REF')>-1){
+      console.warn('Supabase not configured — using local-only mode. Set SUPABASE_URL / SUPABASE_ANON_KEY.')
+      return
+    }
+    _sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY)
+    SB_READY=true
+  }catch(err){
+    console.error('Supabase init failed:',err)
+    SB_READY=false
+  }
+})()
+
+// Wrap a Supabase call: returns .data on success, null + toast on error.
+// Usage: await sbCall(_sb.from('table').select('*'))  OR  await sbCall(somePromise)
+async function sbCall(promise,silent){
+  try{
+    const {data,error}=await promise
+    if(error){
+      console.error('Supabase error:',error)
+      if(!silent) toast('Sync error: '+error.message,'⚠️')
+      return null
+    }
+    return data
+  }catch(err){
+    console.error('Supabase call failed:',err)
+    if(!silent) toast('Connection error — saved locally only','⚠️')
+    return null
+  }
+}
+
+function showAuthOverlay(){
+  const ov=document.getElementById('authOverlay')
+  if(ov) ov.style.display='flex'
+}
+function hideAuthOverlay(){
+  const ov=document.getElementById('authOverlay')
+  if(ov) ov.style.display='none'
+}
+
+let AUTH_MODE='signin' // 'signin' | 'signup'
+function toggleAuthMode(){
+  AUTH_MODE=AUTH_MODE==='signin'?'signup':'signin'
+  document.getElementById('auth-title').textContent=AUTH_MODE==='signin'?'Sign In':'Create Account'
+  document.getElementById('auth-submit-btn').textContent=AUTH_MODE==='signin'?'Sign In':'Sign Up'
+  document.getElementById('auth-switch-btn').textContent=AUTH_MODE==='signin'?'Need an account? Sign Up':'Already have an account? Sign In'
+  document.getElementById('auth-err').style.display='none'
+}
+
+async function submitAuth(e){
+  if(e) CP(e)
+  const email=(document.getElementById('auth-email').value||'').trim()
+  const pass=document.getElementById('auth-pass').value||''
+  const errEl=document.getElementById('auth-err')
+  errEl.style.display='none'
+  if(!email||!pass){ errEl.textContent='Enter email and password';errEl.style.display='block';return }
+  if(!SB_READY){ errEl.textContent='Supabase isn\'t configured yet — running in local-only mode';errEl.style.display='block';return }
+  const btn=document.getElementById('auth-submit-btn')
+  if(btn){btn.disabled=true;btn.textContent='Please wait…'}
+  try{
+    let result
+    if(AUTH_MODE==='signup'){
+      result=await _sb.auth.signUp({email,password:pass})
+    }else{
+      result=await _sb.auth.signInWithPassword({email,password:pass})
+    }
+    if(result.error){
+      errEl.textContent=result.error.message
+      errEl.style.display='block'
+      return
+    }
+    if(AUTH_MODE==='signup'&&!result.data.session){
+      toast('Account created! Check your email to confirm, then sign in. 📧')
+      AUTH_MODE='signup'; toggleAuthMode() // flips back to signin labels
+      return
+    }
+    await onAuthReady(result.data.user)
+  }catch(err){
+    errEl.textContent='Something went wrong: '+err.message
+    errEl.style.display='block'
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=AUTH_MODE==='signin'?'Sign In':'Sign Up'}
+  }
+}
+
+// Called once we have a logged-in Supabase user — loads/creates their profile
+async function onAuthReady(user){
+  if(!user) return
+  AU_SB_ID=user.id
+  let profile=await sbCall(sbLoadProfile(AU_SB_ID),true)
+  if(!profile){
+    // First time — create a profile row with a fresh invite code
+    const inviteCode=dbUid().slice(0,8).toUpperCase()
+    await sbCall(_sb.from('profiles').insert({
+      id:AU_SB_ID,display_name:'You',avatar_emoji:'🐱',invite_code:inviteCode
+    }),true)
+    profile=await sbCall(sbLoadProfile(AU_SB_ID),true)
+  }
+  if(profile){
+    USERS.u1.name=profile.display_name||'You'
+    USERS.u1.avatar=profile.avatar_emoji||'🐱'
+    USERS.u1.inviteCode=profile.invite_code||USERS.u1.inviteCode
+    USERS.u1.id=AU_SB_ID
+    if(profile.partner_id){
+      AU_PARTNER_ID=profile.partner_id
+      const pp=await sbCall(sbLoadProfile(AU_PARTNER_ID),true)
+      if(pp){
+        USERS.u2.name=pp.display_name||'Partner'
+        USERS.u2.avatar=pp.avatar_emoji||'🐈'
+        USERS.u2.id=AU_PARTNER_ID
+        USERS.u2.inviteCode=pp.invite_code||''
+      }
+    }
+  }
+  hideAuthOverlay()
+  await loadAllDataFromSB()
+  updateSBAv()
+  renderPage(CUR)
+  toast(`Welcome back, ${USERS.u1.name}! 💕`)
+}
+
+// Restore session on page load (so refresh doesn't sign you out)
+;(async function restoreSession(){
+  if(!SB_READY) return
+  try{
+    const {data}=await _sb.auth.getSession()
+    if(data&&data.session&&data.session.user){
+      await onAuthReady(data.session.user)
+    }
+  }catch(err){
+    console.warn('Session restore failed:',err)
+  }
+})()
+
 const dleft=b=>{const endField=b.end||b.end_date||'';if(!endField)return 0;const e=new Date(endField+'T23:59:59'),n=new Date();const diff=Math.ceil((e-n)/(864e5));return isNaN(diff)?0:Math.max(0,diff)}
 
 let _CH={}
@@ -1894,6 +2117,7 @@ function renderPage(p){
   if(p==='wishlist')  renderWishlist()
   if(p==='profile')   renderProfile()
   if(p==='myaccounts')       renderAccounts()
+  if(p==='mymoney')          renderWallet('mine')
 
   if(p==='mysavings')       renderISavings('mine')
   if(p==='partnersavings')  renderISavings('partner')
@@ -2014,6 +2238,30 @@ async function signOut(e){
   showAuthOverlay()
   toast('Signed out 🚪')
 }
+
+// Clears in-memory + locally-persisted data so the next sign-in doesn't see stale data
+function resetLocalData(){
+  AU='u1'
+  USERS.u1.name='You'; USERS.u1.avatar='🐱'; USERS.u1.id='u1'
+  USERS.u2.name='Partner'; USERS.u2.avatar='🐈'; USERS.u2.id='u2'
+  S.wallet={u1:[],u2:[]}
+  S.walletSubs=[]
+  S.savingsCats={u1:[],u2:[]}
+  S.accounts=[]
+  S.budgets={u1:[],u2:[]}
+  S.expenses={u1:[],u2:[]}
+  S.insts={u1:[],u2:[]}
+  S.instPays=[]
+  S.goals=[]
+  S.wishlist={u1:[],u2:[]}
+  S.schedule={u1:[],u2:[]}
+  S.todos=[]
+  S.dateBudget={customCats:[],overrides:{},expenses:[],funds:[],hidden:[],period:null,history:[]}
+  try{ localStorage.removeItem('rk_db_v1') }catch(err){}
+  try{ localStorage.removeItem('pairly_photo_u1') }catch(err){}
+  try{ localStorage.removeItem('pairly_photo_u2') }catch(err){}
+}
+
 function updateSBAv(){
   const u=USERS[AU]
   const spanEl=document.getElementById('sbAvInner')
@@ -2028,7 +2276,586 @@ function updateSBAv(){
   document.getElementById('sbName').textContent=u.name
 }
 
-// ─── OVERVIEW ────────────────────────────────────────────
+// ─── ACCOUNTS ────────────────────────────────────────────
+function openAddAccount(){
+  document.getElementById('acct-eid').value=''
+  document.getElementById('acct-name').value=''
+  document.getElementById('acct-type').value='💵 Cash'
+  document.getElementById('acct-custom-wrap').style.display='none'
+  document.getElementById('acct-custom-emoji').value=''
+  document.getElementById('acct-custom-name').value=''
+  document.getElementById('acct-balance').value='0'
+  document.getElementById('acct-err').style.display='none'
+  document.getElementById('acct-save-btn').textContent='Create'
+  document.querySelector('#m-addAccount .mtitle').textContent='🏧 New Account'
+  document.getElementById('m-addAccount').style.display='flex'
+}
+
+function openEditAccount(aid){
+  const a=(S.accounts||[]).find(function(x){return x.id===aid})
+  if(!a) return
+  document.getElementById('acct-eid').value=a.id
+  document.getElementById('acct-name').value=a.name||''
+  const knownTypes=['💵 Cash','📱 GCash','🏦 Bank','💳 E-Wallet','🚨 Emergency Fund','🎯 Savings','🐷 Piggy Bank','₿ Crypto Wallet','✈️ Travel Money']
+  if(knownTypes.indexOf(a.type)>-1){
+    document.getElementById('acct-type').value=a.type
+    document.getElementById('acct-custom-wrap').style.display='none'
+  }else{
+    document.getElementById('acct-type').value='💼 Others'
+    document.getElementById('acct-custom-wrap').style.display='block'
+    const parts=(a.type||'').split(' ')
+    document.getElementById('acct-custom-emoji').value=parts[0]||'💼'
+    document.getElementById('acct-custom-name').value=parts.slice(1).join(' ')||a.type||''
+  }
+  document.getElementById('acct-balance').value=a.balance||0
+  document.getElementById('acct-err').style.display='none'
+  document.getElementById('acct-save-btn').textContent='Save'
+  document.querySelector('#m-addAccount .mtitle').textContent='🏧 Edit Account'
+  document.getElementById('m-addAccount').style.display='flex'
+}
+
+function toggleAcctCustomType(){
+  const sel=document.getElementById('acct-type')
+  const wrap=document.getElementById('acct-custom-wrap')
+  if(wrap) wrap.style.display=(sel.value==='💼 Others')?'block':'none'
+}
+
+async function saveAccount(e){
+  if(e) CP(e)
+  const eid=document.getElementById('acct-eid').value
+  const name=(document.getElementById('acct-name').value||'').trim()
+  let type=document.getElementById('acct-type').value
+  if(type==='💼 Others'){
+    const emoji=(document.getElementById('acct-custom-emoji').value||'💼').trim()
+    const cname=(document.getElementById('acct-custom-name').value||'').trim()
+    if(!cname){ showErr('acct-err','Enter a custom type name'); return }
+    type=emoji+' '+cname
+  }
+  const balance=parseFloat(document.getElementById('acct-balance').value)||0
+  if(!name){ showErr('acct-err','Enter an account name'); return }
+  document.getElementById('acct-err').style.display='none'
+  if(eid){
+    const idx=(S.accounts||[]).findIndex(function(x){return x.id===eid})
+    if(idx>-1){
+      S.accounts[idx].name=name
+      S.accounts[idx].type=type
+      S.accounts[idx].balance=balance
+    }
+    toast('Account updated ✏️')
+  }else{
+    const acct={id:uid(),uid:AU,name,type,balance,txns:[],created:tod()}
+    S.accounts.push(acct)
+    toast(`"${name}" account created! 🏧`)
+  }
+  cm('m-addAccount')
+  renderAccounts()
+}
+
+function deleteAccount(aid){
+  const a=(S.accounts||[]).find(function(x){return x.id===aid})
+  if(!a) return
+  if(!confirm(`Delete "${a.name}"? This removes its transaction history too.`)) return
+  S.accounts=(S.accounts||[]).filter(function(x){return x.id!==aid})
+  toast('Account deleted 🗑️')
+  renderAccounts()
+}
+
+function acctClickEdit(btn){ openEditAccount(btn.dataset.aid) }
+function acctClickDelete(btn){ deleteAccount(btn.dataset.aid) }
+function acctClickAddTxn(btn){ openAddAcctTxn(btn.dataset.aid) }
+function acctClickDelTxn(btn){ delAcctTxn(btn.dataset.aid,btn.dataset.tid) }
+
+function openAddAcctTxn(aid){
+  document.getElementById('acct-txn-aid').value=aid
+  document.getElementById('acct-txn-desc').value=''
+  document.getElementById('acct-txn-amt').value=''
+  document.getElementById('acct-txn-date').value=tod()
+  document.getElementById('acct-txn-cat').value=''
+  document.getElementById('acct-txn-err').style.display='none'
+  setAcctTxnType('income')
+  document.getElementById('m-addAcctTxn').style.display='flex'
+}
+
+let ACCT_TXN_TYPE='income'
+function setAcctTxnType(type){
+  ACCT_TXN_TYPE=type
+  const incBtn=document.getElementById('acct-txn-income')
+  const expBtn=document.getElementById('acct-txn-expense')
+  if(incBtn) incBtn.className=type==='income'?'btn btn-p':'btn'
+  if(expBtn) expBtn.className=type==='expense'?'btn btn-g':'btn'
+}
+
+function saveAcctTxn(e){
+  if(e) CP(e)
+  const aid=document.getElementById('acct-txn-aid').value
+  const desc=(document.getElementById('acct-txn-desc').value||'').trim()
+  const amt=parseFloat(document.getElementById('acct-txn-amt').value)
+  const date=document.getElementById('acct-txn-date').value||tod()
+  const cat=(document.getElementById('acct-txn-cat').value||'').trim()
+  if(!desc){ showErr('acct-txn-err','Enter a description'); return }
+  if(!amt||amt<=0){ showErr('acct-txn-err','Enter a valid amount'); return }
+  document.getElementById('acct-txn-err').style.display='none'
+  const idx=(S.accounts||[]).findIndex(function(x){return x.id===aid})
+  if(idx===-1) return
+  const signedAmt=ACCT_TXN_TYPE==='income'?amt:-amt
+  if(!S.accounts[idx].txns) S.accounts[idx].txns=[]
+  S.accounts[idx].txns.unshift({id:uid(),desc,amt,type:ACCT_TXN_TYPE,date,cat})
+  S.accounts[idx].balance=(S.accounts[idx].balance||0)+signedAmt
+  cm('m-addAcctTxn')
+  toast(ACCT_TXN_TYPE==='income'?'Income added! 💚':'Expense recorded ❤️')
+  renderAccounts()
+}
+
+function delAcctTxn(aid,tid){
+  const idx=(S.accounts||[]).findIndex(function(x){return x.id===aid})
+  if(idx===-1) return
+  const txn=(S.accounts[idx].txns||[]).find(function(t){return t.id===tid})
+  if(!txn) return
+  if(!confirm('Delete this transaction?')) return
+  const signedAmt=txn.type==='income'?txn.amt:-txn.amt
+  S.accounts[idx].balance=(S.accounts[idx].balance||0)-signedAmt
+  S.accounts[idx].txns=S.accounts[idx].txns.filter(function(t){return t.id!==tid})
+  toast('Transaction removed 🗑️')
+  renderAccounts()
+}
+
+function renderAccounts(){
+  const wrap=document.getElementById('myaccounts-content')
+  if(!wrap) return
+  const mine=(S.accounts||[]).filter(function(a){return a.uid===AU})
+  if(mine.length===0){
+    wrap.innerHTML='<div class="card" style="text-align:center;color:var(--txt3);font-size:13px;padding:30px 16px">No accounts yet. Tap "+ New Account" to add your first one. 🏧</div>'
+    return
+  }
+  const total=mine.reduce(function(s,a){return s+(a.balance||0)},0)
+  wrap.innerHTML=`
+    <div class="card" style="margin-bottom:14px">
+      <div class="chd"><span class="ctitle">💰 Total Balance</span></div>
+      <div style="font-size:26px;font-weight:800;color:var(--pink)">${P(total)}</div>
+    </div>
+  `+mine.map(function(a){
+    const txns=(a.txns||[]).slice(0,5)
+    const txnHtml=txns.length===0
+      ? '<div style="font-size:11px;color:var(--txt3);padding:6px 0">No transactions yet</div>'
+      : txns.map(function(t){
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+            <span>${esc(t.desc)}${t.cat?' <span style="color:var(--txt3)">· '+esc(t.cat)+'</span>':''}</span>
+            <span style="display:flex;align-items:center;gap:8px">
+              <span style="color:${t.type==='income'?'var(--teal)':'var(--danger)'};font-weight:700">${t.type==='income'?'+':'-'}${P(t.amt)}</span>
+              <button class="btn btn-xs" data-aid="${a.id}" data-tid="${t.id}" onclick="acctClickDelTxn(this)">✕</button>
+            </span>
+          </div>`
+        }).join('')
+    return `
+      <div class="card" style="margin-bottom:12px">
+        <div class="chd">
+          <span class="ctitle">${esc(a.type)} ${esc(a.name)}</span>
+          <span style="display:flex;gap:6px">
+            <button class="btn btn-xs" data-aid="${a.id}" onclick="acctClickEdit(this)">✏️</button>
+            <button class="btn btn-xs" data-aid="${a.id}" onclick="acctClickDelete(this)">🗑️</button>
+          </span>
+        </div>
+        <div style="font-size:20px;font-weight:800;margin-bottom:10px">${P(a.balance||0)}</div>
+        <button class="btn btn-p" style="width:100%;margin-bottom:8px" data-aid="${a.id}" onclick="acctClickAddTxn(this)">+ Add Transaction</button>
+        ${txnHtml}
+      </div>`
+  }).join('')
+}
+
+// ─── PERSONAL SAVINGS CATEGORIES ─────────────────────────
+let SAVCAT_COLOR='#d4537e'
+function openAddSavCat(scope){
+  document.getElementById('savcat-scope').value=scope
+  document.getElementById('savcat-name').value=''
+  document.getElementById('savcat-icon').value='🎯'
+  SAVCAT_COLOR='#d4537e'
+  document.querySelectorAll('#savcat-colors .cat-color-swatch').forEach(function(el){
+    el.classList.toggle('active',el.dataset.color===SAVCAT_COLOR)
+  })
+  document.getElementById('savcat-custom-color').value=SAVCAT_COLOR
+  document.getElementById('savcat-err').style.display='none'
+  document.getElementById('m-addSavCat').style.display='flex'
+}
+
+function selectSavCatColor(color,el){
+  SAVCAT_COLOR=color
+  document.querySelectorAll('#savcat-colors .cat-color-swatch').forEach(function(s){s.classList.remove('active')})
+  if(el) el.classList.add('active')
+}
+
+function selectSavCatColorCustom(color){
+  SAVCAT_COLOR=color
+  document.querySelectorAll('#savcat-colors .cat-color-swatch').forEach(function(s){s.classList.remove('active')})
+}
+
+function saveSavCat(e){
+  if(e) CP(e)
+  const scope=document.getElementById('savcat-scope').value||'mine'
+  const name=(document.getElementById('savcat-name').value||'').trim()
+  const icon=(document.getElementById('savcat-icon').value||'🎯').trim()
+  if(!name){ showErr('savcat-err','Enter a category name'); return }
+  document.getElementById('savcat-err').style.display='none'
+  const owner=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
+  if(!S.savingsCats[owner]) S.savingsCats[owner]=[]
+  S.savingsCats[owner].push({id:uid(),name,icon,color:SAVCAT_COLOR,total:0,entries:[]})
+  cm('m-addSavCat')
+  toast(`"${name}" savings category created! 🎯`)
+  renderISavings(scope)
+}
+
+function savClickAddEntry(btn){ openAddSavEntry(btn.dataset.scope,btn.dataset.cid) }
+function savClickDelete(btn){ deleteSavCat(btn.dataset.scope,btn.dataset.cid) }
+function savClickDelEntry(btn){ delSavEntry(btn.dataset.scope,btn.dataset.cid,btn.dataset.eid) }
+
+function openAddSavEntry(scope,catId){
+  document.getElementById('saventry-catid').value=catId
+  document.getElementById('saventry-scope').value=scope
+  document.getElementById('saventry-amt').value=''
+  document.getElementById('saventry-note').value=''
+  document.getElementById('saventry-date').value=tod()
+  document.getElementById('saventry-err').style.display='none'
+  setSavEntryType('add')
+  document.getElementById('m-addSavEntry').style.display='flex'
+}
+
+let SAVENTRY_TYPE='add'
+function setSavEntryType(type){
+  SAVENTRY_TYPE=type
+  const addBtn=document.getElementById('saventry-add')
+  const wBtn=document.getElementById('saventry-withdraw')
+  if(addBtn) addBtn.className=type==='add'?'btn btn-p':'btn'
+  if(wBtn) wBtn.className=type==='withdraw'?'btn btn-g':'btn'
+}
+
+function saveSavEntry(e){
+  if(e) CP(e)
+  const catId=document.getElementById('saventry-catid').value
+  const scope=document.getElementById('saventry-scope').value||'mine'
+  const amt=parseFloat(document.getElementById('saventry-amt').value)
+  const note=(document.getElementById('saventry-note').value||'').trim()
+  const date=document.getElementById('saventry-date').value||tod()
+  if(!amt||amt<=0){ showErr('saventry-err','Enter a valid amount'); return }
+  document.getElementById('saventry-err').style.display='none'
+  const owner=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
+  const cat=(S.savingsCats[owner]||[]).find(function(c){return c.id===catId})
+  if(!cat) return
+  if(SAVENTRY_TYPE==='withdraw'&&amt>(cat.total||0)){
+    showErr('saventry-err','Cannot withdraw more than the current total'); return
+  }
+  if(!cat.entries) cat.entries=[]
+  cat.entries.unshift({id:uid(),amt,type:SAVENTRY_TYPE,note,date})
+  cat.total=(cat.total||0)+(SAVENTRY_TYPE==='add'?amt:-amt)
+  cm('m-addSavEntry')
+  toast(SAVENTRY_TYPE==='add'?'Savings added! 💚':'Withdrawal recorded ❤️')
+  renderISavings(scope)
+}
+
+function deleteSavCat(scope,catId){
+  const owner=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
+  const cat=(S.savingsCats[owner]||[]).find(function(c){return c.id===catId})
+  if(!cat) return
+  if(!confirm(`Delete "${cat.name}"? This removes all its saved entries.`)) return
+  S.savingsCats[owner]=S.savingsCats[owner].filter(function(c){return c.id!==catId})
+  toast('Savings category deleted 🗑️')
+  renderISavings(scope)
+}
+
+function delSavEntry(scope,catId,entryId){
+  const owner=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
+  const cat=(S.savingsCats[owner]||[]).find(function(c){return c.id===catId})
+  if(!cat) return
+  const entry=(cat.entries||[]).find(function(en){return en.id===entryId})
+  if(!entry) return
+  if(!confirm('Delete this entry?')) return
+  cat.total=(cat.total||0)-(entry.type==='add'?entry.amt:-entry.amt)
+  cat.entries=cat.entries.filter(function(en){return en.id!==entryId})
+  toast('Entry removed 🗑️')
+  renderISavings(scope)
+}
+
+// scope: 'mine' renders into #mysavings-content, 'partner' into #partnersavings-content
+function renderISavings(scope){
+  scope=scope||'mine'
+  const wrap=document.getElementById(scope==='mine'?'mysavings-content':'partnersavings-content')
+  if(!wrap) return
+  const owner=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
+  const cats=S.savingsCats[owner]||[]
+  if(cats.length===0){
+    wrap.innerHTML='<div class="card" style="text-align:center;color:var(--txt3);font-size:13px;padding:30px 16px">No savings categories yet. Tap "+ New Category" to start saving. 🎯</div>'
+    return
+  }
+  const grandTotal=cats.reduce(function(s,c){return s+(c.total||0)},0)
+  wrap.innerHTML=`
+    <div class="card" style="margin-bottom:14px">
+      <div class="chd"><span class="ctitle">🐷 Total Saved</span></div>
+      <div style="font-size:26px;font-weight:800;color:var(--pink)">${P(grandTotal)}</div>
+    </div>
+  `+cats.map(function(c){
+    const entries=(c.entries||[]).slice(0,5)
+    const entHtml=entries.length===0
+      ? '<div style="font-size:11px;color:var(--txt3);padding:6px 0">No entries yet</div>'
+      : entries.map(function(en){
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+            <span>${fmtD(en.date)}${en.note?' <span style="color:var(--txt3)">· '+esc(en.note)+'</span>':''}</span>
+            <span style="display:flex;align-items:center;gap:8px">
+              <span style="color:${en.type==='add'?'var(--teal)':'var(--danger)'};font-weight:700">${en.type==='add'?'+':'-'}${P(en.amt)}</span>
+              <button class="btn btn-xs" data-scope="${scope}" data-cid="${c.id}" data-eid="${en.id}" onclick="savClickDelEntry(this)">✕</button>
+            </span>
+          </div>`
+        }).join('')
+    return `
+      <div class="card" style="margin-bottom:12px;border-color:${c.color}">
+        <div class="chd">
+          <span class="ctitle">${esc(c.icon)} ${esc(c.name)}</span>
+          <button class="btn btn-xs" data-scope="${scope}" data-cid="${c.id}" onclick="savClickDelete(this)">🗑️</button>
+        </div>
+        <div style="font-size:20px;font-weight:800;margin-bottom:10px;color:${c.color}">${P(c.total||0)}</div>
+        <button class="btn btn-p" style="width:100%;margin-bottom:8px" data-scope="${scope}" data-cid="${c.id}" onclick="savClickAddEntry(this)">+ Add / Withdraw</button>
+        ${entHtml}
+      </div>`
+  }).join('')
+}
+
+// ─── WALLET (generic scope-based txn — used by Partner Wallet) ──
+let TXN_TYPE='income'
+function openAddTxn(scope,defaultType){
+  document.getElementById('txn-scope').value=scope
+  document.getElementById('txn-desc').value=''
+  document.getElementById('txn-amt').value=''
+  document.getElementById('txn-date').value=tod()
+  document.getElementById('txn-cat').value=''
+  document.getElementById('txn-err').style.display='none'
+  setTxnType(defaultType||'income')
+  document.getElementById('m-addTxn').style.display='flex'
+}
+
+function setTxnType(type){
+  TXN_TYPE=type
+  const incBtn=document.getElementById('txn-type-income')
+  const expBtn=document.getElementById('txn-type-expense')
+  if(incBtn) incBtn.className=type==='income'?'btn btn-p':'btn'
+  if(expBtn) expBtn.className=type==='expense'?'btn btn-g':'btn'
+}
+
+function saveWalletTxn(e){
+  if(e) CP(e)
+  const scope=document.getElementById('txn-scope').value||'mine'
+  const desc=(document.getElementById('txn-desc').value||'').trim()
+  const amt=parseFloat(document.getElementById('txn-amt').value)
+  const date=document.getElementById('txn-date').value||tod()
+  const cat=(document.getElementById('txn-cat').value||'').trim()
+  if(!desc){ showErr('txn-err','Enter a description'); return }
+  if(!amt||amt<=0){ showErr('txn-err','Enter a valid amount'); return }
+  document.getElementById('txn-err').style.display='none'
+  const owner=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
+  if(!S.wallet[owner]) S.wallet[owner]=[]
+  S.wallet[owner].unshift({id:uid(),desc,amt,type:TXN_TYPE,date,cat})
+  cm('m-addTxn')
+  toast(TXN_TYPE==='income'?'Income added! 💚':'Expense recorded ❤️')
+  renderWallet(scope)
+}
+
+function walletClickDelTxn(btn){ delWalletTxn(btn.dataset.scope,btn.dataset.tid) }
+function delWalletTxn(scope,tid){
+  const owner=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
+  if(!confirm('Delete this transaction?')) return
+  S.wallet[owner]=(S.wallet[owner]||[]).filter(function(t){return t.id!==tid})
+  toast('Transaction removed 🗑️')
+  renderWallet(scope)
+}
+
+// ─── WALLET SUB-CATEGORIES (used by "My Wallet": Cash, GCash, etc.) ──
+function openAddWalletSub(){
+  document.getElementById('wsub-eid').value=''
+  document.getElementById('wsub-name').value=''
+  document.getElementById('wsub-type').value='💵 Cash'
+  document.getElementById('wsub-balance').value='0'
+  document.getElementById('wsub-err').style.display='none'
+  document.getElementById('wsub-save-btn').textContent='Create'
+  document.querySelector('#m-addWalletSub .mtitle').textContent='💵 New Wallet'
+  document.getElementById('m-addWalletSub').style.display='flex'
+}
+
+function openEditWalletSub(wid){
+  const w=(S.walletSubs||[]).find(function(x){return x.id===wid})
+  if(!w) return
+  document.getElementById('wsub-eid').value=w.id
+  document.getElementById('wsub-name').value=w.name||''
+  document.getElementById('wsub-type').value=w.type||'💵 Cash'
+  document.getElementById('wsub-balance').value=w.balance||0
+  document.getElementById('wsub-err').style.display='none'
+  document.getElementById('wsub-save-btn').textContent='Save'
+  document.querySelector('#m-addWalletSub .mtitle').textContent='💵 Edit Wallet'
+  document.getElementById('m-addWalletSub').style.display='flex'
+}
+
+function saveWalletSub(e){
+  if(e) CP(e)
+  const eid=document.getElementById('wsub-eid').value
+  const name=(document.getElementById('wsub-name').value||'').trim()
+  const type=document.getElementById('wsub-type').value
+  const balance=parseFloat(document.getElementById('wsub-balance').value)||0
+  if(!name){ showErr('wsub-err','Enter a wallet name'); return }
+  document.getElementById('wsub-err').style.display='none'
+  if(eid){
+    const idx=(S.walletSubs||[]).findIndex(function(x){return x.id===eid})
+    if(idx>-1){
+      S.walletSubs[idx].name=name
+      S.walletSubs[idx].type=type
+      S.walletSubs[idx].balance=balance
+    }
+    toast('Wallet updated ✏️')
+  }else{
+    S.walletSubs.push({id:uid(),uid:AU,name,type,balance,txns:[]})
+    toast(`"${name}" wallet created! 💵`)
+  }
+  cm('m-addWalletSub')
+  renderWallet('mine')
+}
+
+function wsubClickEdit(btn){ openEditWalletSub(btn.dataset.wid) }
+function wsubClickDelete(btn){ deleteWalletSub(btn.dataset.wid) }
+function wsubClickAddTxn(btn){ openAddWalletSubTxn(btn.dataset.wid) }
+function wsubClickDelTxn(btn){ delWalletSubTxn(btn.dataset.wid,btn.dataset.tid) }
+
+function deleteWalletSub(wid){
+  const w=(S.walletSubs||[]).find(function(x){return x.id===wid})
+  if(!w) return
+  if(!confirm(`Delete "${w.name}"? This removes its transaction history too.`)) return
+  S.walletSubs=(S.walletSubs||[]).filter(function(x){return x.id!==wid})
+  toast('Wallet deleted 🗑️')
+  renderWallet('mine')
+}
+
+function openAddWalletSubTxn(wid){
+  document.getElementById('wtxn-wid').value=wid
+  document.getElementById('wtxn-desc').value=''
+  document.getElementById('wtxn-amt').value=''
+  document.getElementById('wtxn-date').value=tod()
+  document.getElementById('wtxn-cat').value=''
+  document.getElementById('wtxn-err').style.display='none'
+  setWTxnType('income')
+  document.getElementById('m-addWalletTxn').style.display='flex'
+}
+
+let WTXN_TYPE='income'
+function setWTxnType(type){
+  WTXN_TYPE=type
+  const incBtn=document.getElementById('wtxn-income')
+  const expBtn=document.getElementById('wtxn-expense')
+  if(incBtn) incBtn.className=type==='income'?'btn btn-p':'btn'
+  if(expBtn) expBtn.className=type==='expense'?'btn btn-g':'btn'
+}
+
+function saveWalletSubTxn(e){
+  if(e) CP(e)
+  const wid=document.getElementById('wtxn-wid').value
+  const desc=(document.getElementById('wtxn-desc').value||'').trim()
+  const amt=parseFloat(document.getElementById('wtxn-amt').value)
+  const date=document.getElementById('wtxn-date').value||tod()
+  const cat=(document.getElementById('wtxn-cat').value||'').trim()
+  if(!desc){ showErr('wtxn-err','Enter a description'); return }
+  if(!amt||amt<=0){ showErr('wtxn-err','Enter a valid amount'); return }
+  document.getElementById('wtxn-err').style.display='none'
+  const idx=(S.walletSubs||[]).findIndex(function(x){return x.id===wid})
+  if(idx===-1) return
+  const signedAmt=WTXN_TYPE==='income'?amt:-amt
+  if(!S.walletSubs[idx].txns) S.walletSubs[idx].txns=[]
+  S.walletSubs[idx].txns.unshift({id:uid(),desc,amt,type:WTXN_TYPE,date,cat})
+  S.walletSubs[idx].balance=(S.walletSubs[idx].balance||0)+signedAmt
+  cm('m-addWalletTxn')
+  toast(WTXN_TYPE==='income'?'Income added! 💚':'Expense recorded ❤️')
+  renderWallet('mine')
+}
+
+function delWalletSubTxn(wid,tid){
+  const idx=(S.walletSubs||[]).findIndex(function(x){return x.id===wid})
+  if(idx===-1) return
+  const txn=(S.walletSubs[idx].txns||[]).find(function(t){return t.id===tid})
+  if(!txn) return
+  if(!confirm('Delete this transaction?')) return
+  const signedAmt=txn.type==='income'?txn.amt:-txn.amt
+  S.walletSubs[idx].balance=(S.walletSubs[idx].balance||0)-signedAmt
+  S.walletSubs[idx].txns=S.walletSubs[idx].txns.filter(function(t){return t.id!==tid})
+  toast('Transaction removed 🗑️')
+  renderWallet('mine')
+}
+
+// scope: 'mine' renders My Wallet (sub-wallets) into #mymoney-content,
+// 'partner' renders Partner Wallet (generic txn list) into #partnermoney-content
+function renderWallet(scope){
+  scope=scope||'mine'
+  if(scope==='mine'){
+    const wrap=document.getElementById('mymoney-content')
+    if(!wrap) return
+    const mine=(S.walletSubs||[]).filter(function(w){return w.uid===AU})
+    if(mine.length===0){
+      wrap.innerHTML='<div class="card" style="text-align:center;color:var(--txt3);font-size:13px;padding:30px 16px">No wallets yet. Tap "+ New Wallet" to add Cash, GCash, etc. 💵</div>'
+      return
+    }
+    const total=mine.reduce(function(s,w){return s+(w.balance||0)},0)
+    wrap.innerHTML=`
+      <div class="card" style="margin-bottom:14px">
+        <div class="chd"><span class="ctitle">💵 Total Wallet Balance</span></div>
+        <div style="font-size:26px;font-weight:800;color:var(--pink)">${P(total)}</div>
+      </div>
+    `+mine.map(function(w){
+      const txns=(w.txns||[]).slice(0,5)
+      const txnHtml=txns.length===0
+        ? '<div style="font-size:11px;color:var(--txt3);padding:6px 0">No transactions yet</div>'
+        : txns.map(function(t){
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+              <span>${esc(t.desc)}${t.cat?' <span style="color:var(--txt3)">· '+esc(t.cat)+'</span>':''}</span>
+              <span style="display:flex;align-items:center;gap:8px">
+                <span style="color:${t.type==='income'?'var(--teal)':'var(--danger)'};font-weight:700">${t.type==='income'?'+':'-'}${P(t.amt)}</span>
+                <button class="btn btn-xs" data-wid="${w.id}" data-tid="${t.id}" onclick="wsubClickDelTxn(this)">✕</button>
+              </span>
+            </div>`
+          }).join('')
+      return `
+        <div class="card" style="margin-bottom:12px">
+          <div class="chd">
+            <span class="ctitle">${esc(w.type)} ${esc(w.name)}</span>
+            <span style="display:flex;gap:6px">
+              <button class="btn btn-xs" data-wid="${w.id}" onclick="wsubClickEdit(this)">✏️</button>
+              <button class="btn btn-xs" data-wid="${w.id}" onclick="wsubClickDelete(this)">🗑️</button>
+            </span>
+          </div>
+          <div style="font-size:20px;font-weight:800;margin-bottom:10px">${P(w.balance||0)}</div>
+          <button class="btn btn-p" style="width:100%;margin-bottom:8px" data-wid="${w.id}" onclick="wsubClickAddTxn(this)">+ Add Transaction</button>
+          ${txnHtml}
+        </div>`
+    }).join('')
+  }else{
+    const wrap=document.getElementById('partnermoney-content')
+    if(!wrap) return
+    const owner=AU==='u1'?'u2':'u1'
+    const txns=S.wallet[owner]||[]
+    const total=txns.reduce(function(s,t){return s+(t.type==='income'?t.amt:-t.amt)},0)
+    if(txns.length===0){
+      wrap.innerHTML='<div class="card" style="text-align:center;color:var(--txt3);font-size:13px;padding:30px 16px">No transactions recorded yet. 👛</div>'
+      return
+    }
+    wrap.innerHTML=`
+      <div class="card" style="margin-bottom:14px">
+        <div class="chd"><span class="ctitle">👛 Balance</span></div>
+        <div style="font-size:26px;font-weight:800;color:var(--pink)">${P(total)}</div>
+      </div>
+      <div class="card">
+        ${txns.map(function(t){
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+            <span>${esc(t.desc)}${t.cat?' <span style="color:var(--txt3)">· '+esc(t.cat)+'</span>':''}<div style="font-size:10px;color:var(--txt3)">${fmtD(t.date)}</div></span>
+            <span style="display:flex;align-items:center;gap:8px">
+              <span style="color:${t.type==='income'?'var(--teal)':'var(--danger)'};font-weight:700">${t.type==='income'?'+':'-'}${P(t.amt)}</span>
+              <button class="btn btn-xs" data-scope="partner" data-tid="${t.id}" onclick="walletClickDelTxn(this)">✕</button>
+            </span>
+          </div>`
+        }).join('')}
+      </div>`
+  }
+}
+
+
 function renderOV(){
   const pu=AU==='u1'?'u2':'u1'
   const myE=S.expenses[AU]||[]; const ptE=S.expenses[pu]||[]
@@ -2367,6 +3194,60 @@ function renderCats(){
   mkChart('catPie',{type:'doughnut',data:{labels:catD.map(x=>`${x.c.icon} ${x.c.name}`),datasets:[{data:catD.map(x=>x.amt),backgroundColor:catD.map(x=>x.c.color+'dd'),borderWidth:2,borderColor:cc.bg2,hoverOffset:10}]},options:{responsive:true,maintainAspectRatio:false,cutout:'55%',animation:{duration:700},plugins:{legend:{display:true,position:'right',labels:{color:cc.txt2,font:{family:'DM Sans',size:11},usePointStyle:true,boxWidth:10,padding:12}},tooltip:{backgroundColor:cc.bg2,titleColor:cc.txt,bodyColor:cc.txt2,borderColor:cc.border,borderWidth:1.5,cornerRadius:12}}}})
 }
 
+function openEditCat(e,cid){
+  if(e) CP(e)
+  document.getElementById('cat-err').style.display='none'
+  if(cid){
+    const c=S.cats.find(x=>x.id===cid)
+    if(!c) return
+    document.getElementById('cat-eid').value=c.id
+    document.getElementById('cat-name').value=c.name||''
+    document.getElementById('cat-icon').value=c.icon||'🏷️'
+    document.getElementById('cat-color').value=c.color||'#d4537e'
+    document.getElementById('cat-mtitle').textContent='🏷️ Edit Category'
+  }else{
+    document.getElementById('cat-eid').value=''
+    document.getElementById('cat-name').value=''
+    document.getElementById('cat-icon').value='🏷️'
+    document.getElementById('cat-color').value='#d4537e'
+    document.getElementById('cat-mtitle').textContent='🏷️ New Category'
+  }
+  document.getElementById('m-addCat').style.display='flex'
+}
+
+function saveCat(e){
+  if(e) CP(e)
+  const eid=document.getElementById('cat-eid').value
+  const name=(document.getElementById('cat-name').value||'').trim()
+  const icon=(document.getElementById('cat-icon').value||'🏷️').trim()
+  const color=document.getElementById('cat-color').value||'#d4537e'
+  if(!name){ showErr('cat-err','Enter a category name'); return }
+  document.getElementById('cat-err').style.display='none'
+  if(eid){
+    const idx=S.cats.findIndex(x=>x.id===eid)
+    if(idx>-1){ S.cats[idx].name=name; S.cats[idx].icon=icon; S.cats[idx].color=color }
+    toast('Category updated ✏️')
+  }else{
+    S.cats.push({id:uid(),name,icon,color})
+    toast(`"${name}" category added! 🏷️`)
+  }
+  cm('m-addCat')
+  renderCats()
+}
+
+function delCat(cid){
+  // Move any expenses in this category to a fallback "Other" category instead of orphaning them
+  let other=S.cats.find(c=>c.name==='Other'||c.id==='other')
+  if(!other){
+    other={id:'other',name:'Other',icon:'✨',color:'#9e9e9e'}
+    S.cats.push(other)
+  }
+  allExps().forEach(ex=>{ if(ex.catId===cid) ex.catId=other.id })
+  S.cats=S.cats.filter(c=>c.id!==cid)
+  toast('Category deleted 🗑️')
+  renderCats()
+}
+
 // ─── TODO ─────────────────────────────────────────────────
 let _calDate=new Date()
 const TODO_CAT_ICONS={finance:'💰',personal:'👤',couple:'💑',work:'💼',health:'💊',other:'✨'}
@@ -2419,6 +3300,87 @@ function renderTodo(){
     }).join('')
   renderSched()
   renderCal()
+}
+
+function toggleTodoCustCat(){
+  const sel=document.getElementById('todo-cat')
+  const wrap=document.getElementById('todo-custcat-wrap')
+  if(wrap) wrap.style.display=(sel.value==='other')?'block':'none'
+}
+
+function openEditTodo(e,tid){
+  if(e) CP(e)
+  document.getElementById('todo-err').style.display='none'
+  document.getElementById('todo-custcat-wrap').style.display='none'
+  if(tid){
+    const t=S.todos.find(x=>x.id===tid)
+    if(!t) return
+    document.getElementById('todo-eid').value=t.id
+    document.getElementById('todo-title').value=t.title||''
+    document.getElementById('todo-due').value=t.due||''
+    document.getElementById('todo-pri').value=t.pri||'mid'
+    const knownCats=['school','personal','finance','couple','work','health']
+    if(knownCats.indexOf(t.cat)>-1){
+      document.getElementById('todo-cat').value=t.cat
+    }else{
+      document.getElementById('todo-cat').value='other'
+      document.getElementById('todo-custcat-wrap').style.display='block'
+      document.getElementById('todo-custcat').value=t.cat||''
+    }
+    document.getElementById('todo-notes').value=t.notes||''
+    document.getElementById('todo-mtitle').textContent='✅ Edit Task'
+  }else{
+    document.getElementById('todo-eid').value=''
+    document.getElementById('todo-title').value=''
+    document.getElementById('todo-due').value=''
+    document.getElementById('todo-pri').value='mid'
+    document.getElementById('todo-cat').value='personal'
+    document.getElementById('todo-custcat').value=''
+    document.getElementById('todo-notes').value=''
+    document.getElementById('todo-mtitle').textContent='✅ New Task'
+  }
+  document.getElementById('m-addTodo').style.display='flex'
+}
+
+function saveTodo(e){
+  if(e) CP(e)
+  const eid=document.getElementById('todo-eid').value
+  const title=(document.getElementById('todo-title').value||'').trim()
+  const due=document.getElementById('todo-due').value||''
+  const pri=document.getElementById('todo-pri').value||'mid'
+  let cat=document.getElementById('todo-cat').value||'personal'
+  if(cat==='other'){
+    const custom=(document.getElementById('todo-custcat').value||'').trim()
+    if(custom) cat=custom
+  }
+  const notes=(document.getElementById('todo-notes').value||'').trim()
+  if(!title){ showErr('todo-err','Enter a task title'); return }
+  document.getElementById('todo-err').style.display='none'
+  if(eid){
+    const idx=S.todos.findIndex(x=>x.id===eid)
+    if(idx>-1){
+      S.todos[idx].title=title; S.todos[idx].due=due; S.todos[idx].pri=pri
+      S.todos[idx].cat=cat; S.todos[idx].notes=notes
+    }
+    toast('Task updated ✏️')
+  }else{
+    S.todos.push({id:uid(),uid:AU,title,due,pri,cat,notes,done:false})
+    toast('Task added! ✅')
+  }
+  cm('m-addTodo')
+  renderTodo()
+}
+
+function delTodo(tid){
+  S.todos=S.todos.filter(t=>t.id!==tid)
+  toast('Task deleted 🗑️')
+  renderTodo()
+}
+
+function toggleSchedCustType(){
+  const sel=document.getElementById('sched-type')
+  const wrap=document.getElementById('sched-custtype-wrap')
+  if(wrap) wrap.style.display=(sel.value==='other')?'block':'none'
 }
 
 function renderSched(){
@@ -2841,6 +3803,13 @@ function openModal(id,ctx){
 }
 function cm(id){document.getElementById(id).style.display='none'}
 function obg(e,id){if(e.target.classList.contains('overlay'))cm(id)}
+// Show an inline error message inside a modal's .err div
+function showErr(id,msg){
+  const el=document.getElementById(id)
+  if(!el) return
+  el.textContent=msg
+  el.style.display='block'
+}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.overlay').forEach(m=>m.style.display='none')})
 
 function delConfirm(title,body,fn){
@@ -3171,6 +4140,125 @@ async function saveGoal(e){
 }
 async function delGoal(gid){if(SB_READY&&AU_SB_ID)await sbDeleteGoal(gid);S.goals=S.goals.filter(g=>g.id!==gid);toast('Goal deleted 🗑️');renderShared()}
 
+// ═══════════════ SUPABASE WRAPPER FUNCTIONS ═══════════════
+// Each mirrors the pattern already used inline for the Date Budget tables.
+
+function sbLoadProfile(id){
+  return _sb.from('profiles').select('*').eq('id',id).maybeSingle()
+}
+async function sbSaveProfile(id,fields){
+  return await sbCall(_sb.from('profiles').update(fields).eq('id',id))
+}
+
+// ── Budgets ──
+async function sbCreateBudget(row){
+  const data=await sbCall(_sb.from('budgets').insert(row).select())
+  return data&&data[0]?data[0]:null
+}
+async function sbDeleteBudget(bid){
+  return await sbCall(_sb.from('budgets').delete().eq('id',bid))
+}
+
+// ── Expenses ──
+async function sbCreateExpense(row){
+  const data=await sbCall(_sb.from('expenses').insert(row).select())
+  return data&&data[0]?data[0]:null
+}
+async function sbUpdateExpense(eid,fields){
+  return await sbCall(_sb.from('expenses').update(fields).eq('id',eid))
+}
+async function sbDeleteExpense(eid){
+  return await sbCall(_sb.from('expenses').delete().eq('id',eid))
+}
+
+// ── Installments ──
+async function sbCreateInstallment(row){
+  const data=await sbCall(_sb.from('installments').insert(row).select())
+  return data&&data[0]?data[0]:null
+}
+async function sbRecordInstallmentPayment(row){
+  const data=await sbCall(_sb.from('installment_payments').insert(row).select())
+  return data&&data[0]?data[0]:null
+}
+
+// ── Savings goals / contributions ──
+async function sbCreateGoal(row){
+  const data=await sbCall(_sb.from('savings_goals').insert(row).select())
+  return data&&data[0]?data[0]:null
+}
+async function sbDeleteGoal(gid){
+  return await sbCall(_sb.from('savings_goals').delete().eq('id',gid))
+}
+async function sbAddContribution(row){
+  const data=await sbCall(_sb.from('savings_contributions').insert(row).select())
+  return data&&data[0]?data[0]:null
+}
+
+// ── Wishlist ──
+async function sbCreateWishItem(row){
+  const data=await sbCall(_sb.from('wishlist').insert(row).select())
+  return data&&data[0]?data[0]:null
+}
+async function sbUpdateWishItem(wid,fields){
+  return await sbCall(_sb.from('wishlist').update(fields).eq('id',wid))
+}
+async function sbDeleteWishItem(wid){
+  return await sbCall(_sb.from('wishlist').delete().eq('id',wid))
+}
+
+// ── Schedules ──
+async function sbCreateScheduleEntry(row){
+  const data=await sbCall(_sb.from('schedules').insert(row).select())
+  return data&&data[0]?data[0]:null
+}
+async function sbDeleteScheduleEntry(sid){
+  return await sbCall(_sb.from('schedules').delete().eq('id',sid))
+}
+
+// ── Todos ──
+async function sbUpdateTodo(id,fields){
+  return await sbCall(_sb.from('todos').update(fields).eq('id',id))
+}
+
+// ── Bulk load: pulls everything for both linked users into local state S ──
+async function loadAllDataFromSB(){
+  if(!SB_READY||!AU_SB_ID) return
+  const ids=[AU_SB_ID]
+  if(AU_PARTNER_ID) ids.push(AU_PARTNER_ID)
+  try{
+    const [budgets,expenses,installments,instPays,goals,contribs,wish,scheds,todos,dbFunds,dbCats,dbExp]=await Promise.all([
+      sbCall(_sb.from('budgets').select('*').in('user_id',ids),true),
+      sbCall(_sb.from('expenses').select('*').in('user_id',ids),true),
+      sbCall(_sb.from('installments').select('*').in('user_id',ids),true),
+      sbCall(_sb.from('installment_payments').select('*').in('user_id',ids),true),
+      sbCall(_sb.from('savings_goals').select('*').in('owner_id',ids),true),
+      sbCall(_sb.from('savings_contributions').select('*').in('user_id',ids),true),
+      sbCall(_sb.from('wishlist').select('*').in('user_id',ids),true),
+      sbCall(_sb.from('schedules').select('*').in('user_id',ids),true),
+      sbCall(_sb.from('todos').select('*').in('uid',ids),true),
+      sbCall(_sb.from('date_budget_funds').select('*').in('user_id',ids),true),
+      sbCall(_sb.from('date_budget_categories').select('*').in('user_id',ids),true),
+      sbCall(_sb.from('date_budget_expenses').select('*').in('user_id',ids),true)
+    ])
+    // NOTE: this maps remote rows into the local S state shape. Column/shape
+    // names follow what's used elsewhere in this file (e.g. saveDateFund,
+    // saveBudgetModal). Double check against your actual table definitions —
+    // if a table has extra columns this won't break anything, but if a
+    // column name differs the corresponding field will just come back undefined.
+    if(dbFunds) S.dateBudget.funds=dbFunds.map(f=>({id:f.id,amt:f.amount,who:f.funded_by,note:f.note,date:f.fund_date}))
+    if(dbCats) S.dateBudget.customCats=dbCats.map(c=>({id:c.id,name:c.name,icon:c.icon,limit:c.limit_amount,color:c.color}))
+    if(dbExp) S.dateBudget.expenses=dbExp.map(e=>({id:e.id,desc:e.description,amt:e.amount,catId:e.category_id,who:e.paid_by,date:e.expense_date,note:e.note}))
+    dbSave()
+    if(goals) S.goals=goals
+    if(wish){ S.wishlist.u1=wish.filter(w=>w.user_id===AU_SB_ID); S.wishlist.u2=wish.filter(w=>w.user_id===AU_PARTNER_ID) }
+    if(todos) S.todos=todos
+    renderPage(CUR)
+  }catch(err){
+    console.error('loadAllDataFromSB failed:',err)
+    toast('Could not load synced data — showing local data only','⚠️')
+  }
+}
+
 // ─── MONTHLY DATE BUDGET ─────────────────────────────────
 // Generate proper UUID v4 for Supabase (id column is uuid type)
 function dbUid(){
@@ -3199,12 +4287,13 @@ const DB_DEFAULT_CATS=[
     const raw=localStorage.getItem('rk_db_v1')
     if(raw) S.dateBudget=JSON.parse(raw)
   }catch(e){}
-  if(!S.dateBudget) S.dateBudget={customCats:[],overrides:{},expenses:[],funds:[],hidden:[]}
+  if(!S.dateBudget) S.dateBudget={customCats:[],overrides:{},expenses:[],funds:[],hidden:[],period:null,history:[]}
   if(!S.dateBudget.customCats) S.dateBudget.customCats=[]
   if(!S.dateBudget.overrides)  S.dateBudget.overrides={}
   if(!S.dateBudget.expenses)   S.dateBudget.expenses=[]
   if(!S.dateBudget.funds)      S.dateBudget.funds=[]
   if(!S.dateBudget.hidden)     S.dateBudget.hidden=[]
+  if(!S.dateBudget.history)    S.dateBudget.history=[]
 })()
 
 function dbSave(){
@@ -3449,6 +4538,47 @@ async function deleteDateFund(fid){
   renderDateBudget()
 }
 
+function openEditFund(fid){
+  const f=(S.dateBudget.funds||[]).find(function(x){return x.id===fid})
+  if(!f) return
+  document.getElementById('def-fid').value=f.id
+  document.getElementById('def-amt').value=f.amt
+  document.getElementById('def-who').value=f.who||'u1'
+  document.getElementById('def-note').value=f.note||''
+  document.getElementById('def-date').value=f.date||tod()
+  document.getElementById('def-err').style.display='none'
+  document.getElementById('m-dateEditFund').style.display='flex'
+}
+
+async function saveEditFund(e){
+  if(e) CP(e)
+  const fid=document.getElementById('def-fid').value
+  const amt=parseFloat(document.getElementById('def-amt').value)
+  const who=document.getElementById('def-who').value||'u1'
+  const note=(document.getElementById('def-note').value||'').trim()
+  const date=document.getElementById('def-date').value||tod()
+  const errEl=document.getElementById('def-err')
+  if(!amt||amt<=0){ errEl.textContent='Enter a valid amount'; errEl.style.display='block'; return }
+  errEl.style.display='none'
+  const idx=(S.dateBudget.funds||[]).findIndex(function(x){return x.id===fid})
+  if(idx>-1){
+    S.dateBudget.funds[idx].amt=amt
+    S.dateBudget.funds[idx].who=who
+    S.dateBudget.funds[idx].note=note
+    S.dateBudget.funds[idx].date=date
+  }
+  if(SB_READY&&AU_SB_ID){
+    const upd=await _sb.from('date_budget_funds').update({
+      amount:amt,funded_by:who,note:note||null,fund_date:date
+    }).eq('id',fid)
+    if(upd.error) console.error('fund update error:',upd.error)
+  }
+  dbSave()
+  cm('m-dateEditFund')
+  toast('Fund entry updated ✏️')
+  renderDateBudget()
+}
+
 // ── RENDER ──────────────────────────────────────────────────
 
 function dbClickExp(btn){openDateExp(null,btn.dataset.cid)}
@@ -3638,6 +4768,134 @@ function dbGetHistory(){
   return S.dateBudget.history||[]
 }
 
+// Open the period modal, pre-filled with current period if one exists
+function openDatePeriod(){
+  const p=dbGetPeriod()
+  document.getElementById('dp-err').style.display='none'
+  document.getElementById('dp-reset-btn').style.display=p&&p.name?'inline-block':'none'
+  document.getElementById('dp-modal-title').textContent=p&&p.name?'📅 Edit Budget Period':'📅 Set Budget Period'
+  if(p&&p.name){
+    document.getElementById('dp-name').value=p.name||''
+    document.getElementById('dp-start').value=p.start||tod()
+    const unl=!p.days
+    document.getElementById('dp-unlimited').checked=unl
+    document.getElementById('dp-days').value=p.days||30
+    document.getElementById('dp-days').disabled=unl
+  }else{
+    document.getElementById('dp-name').value=monthName(tod()).split(' ')[0]
+    document.getElementById('dp-start').value=tod()
+    document.getElementById('dp-unlimited').checked=false
+    document.getElementById('dp-days').value=30
+    document.getElementById('dp-days').disabled=false
+  }
+  toggleDPDays(document.getElementById('dp-unlimited'))
+  document.getElementById('m-datePeriod').style.display='flex'
+}
+
+function toggleDPDays(cb){
+  const daysInp=document.getElementById('dp-days')
+  if(daysInp) daysInp.disabled=cb.checked
+  const infoEl=document.getElementById('dp-end-info')
+  const dispEl=document.getElementById('dp-end-display')
+  if(!infoEl||!dispEl) return
+  if(cb.checked){
+    infoEl.style.display='none'
+    return
+  }
+  const start=document.getElementById('dp-start').value||tod()
+  const days=parseInt(document.getElementById('dp-days').value,10)||0
+  if(days>0){
+    dispEl.textContent=fmtD(addD(start,days-1))
+    infoEl.style.display='block'
+  }else{
+    infoEl.style.display='none'
+  }
+}
+
+// Save (create or update) the active date-budget period in place, no archiving
+function saveDatePeriod(e){
+  if(e) CP(e)
+  const name=(document.getElementById('dp-name').value||'').trim()
+  const start=document.getElementById('dp-start').value||tod()
+  const unlimited=document.getElementById('dp-unlimited').checked
+  const days=unlimited?null:(parseInt(document.getElementById('dp-days').value,10)||30)
+  const errEl=document.getElementById('dp-err')
+  if(!name){
+    errEl.textContent='Please enter a period name'
+    errEl.style.display='block'
+    return
+  }
+  errEl.style.display='none'
+  if(!S.dateBudget.period) S.dateBudget.period={}
+  S.dateBudget.period.name=name
+  S.dateBudget.period.start=start
+  S.dateBudget.period.days=days
+  dbSave()
+  cm('m-datePeriod')
+  toast(`Period "${name}" saved! 📅`)
+  renderPage('datebudget')
+}
+
+// Archive the current period (snapshot funds/expenses into history) and start a fresh one.
+// Triggered by the "🔄 Reset" button, shown only once a period already exists.
+function resetDatePeriod(e){
+  if(e) CP(e)
+  const p=dbGetPeriod()
+  if(!p||!p.name){ cm('m-datePeriod'); return }
+  const total=dbTotalFunds(), spent=dbTotalSpent()
+  if(!S.dateBudget.history) S.dateBudget.history=[]
+  S.dateBudget.history.unshift({
+    id:uid(),
+    name:p.name,
+    start:p.start||tod(),
+    days:p.days||null,
+    end:tod(),
+    funds:total,
+    spent:spent,
+    expenses:(S.dateBudget.expenses||[]).slice(),
+    fundsLog:(S.dateBudget.funds||[]).slice()
+  })
+  // Reset live data for the new period
+  S.dateBudget.expenses=[]
+  S.dateBudget.funds=[]
+  const name=(document.getElementById('dp-name').value||'').trim()||p.name
+  const start=document.getElementById('dp-start').value||tod()
+  const unlimited=document.getElementById('dp-unlimited').checked
+  const days=unlimited?null:(parseInt(document.getElementById('dp-days').value,10)||30)
+  S.dateBudget.period={name,start,days}
+  dbSave()
+  cm('m-datePeriod')
+  toast(`"${p.name}" archived, "${name}" started! 🎉`)
+  renderPage('datebudget')
+}
+
+// Render the Monthly Budget History list (archived periods)
+function dbRenderHistory(){
+  const list=document.getElementById('db-history-list')
+  const cnt=document.getElementById('db-history-cnt')
+  const hist=dbGetHistory()
+  if(cnt) cnt.textContent=hist.length+' period'+(hist.length===1?'':'s')
+  if(!list) return
+  if(hist.length===0){
+    list.innerHTML='<div style="text-align:center;color:var(--txt3);font-size:13px;padding:18px 0">No past periods yet — archive your current period to start tracking history.</div>'
+    return
+  }
+  list.innerHTML=hist.map(function(h){
+    const rem=Math.max(0,(h.funds||0)-(h.spent||0))
+    const bp=pct(h.spent||0,h.funds||1)
+    return `
+      <div class="card card-sm" style="margin-bottom:10px">
+        <div class="chd" style="margin-bottom:8px">
+          <span class="ctitle">💕 ${esc(h.name)}</span>
+          <span class="badge ${bp>85?'bd':'ba'}">${bp}% used</span>
+        </div>
+        <div style="font-size:11px;color:var(--txt3);margin-bottom:8px">${fmtD(h.start)} → ${fmtD(h.end)}${h.days?' · '+h.days+' day budget':' · No deadline'}</div>
+        <div class="pw" style="height:10px"><div class="pf ${bp>85?'pfd':'pfp'}" style="width:${bp}%"></div></div>
+        <div class="pmeta"><span>${P(h.spent||0)} spent</span><span>${P(rem)} remaining of ${P(h.funds||0)}</span></div>
+      </div>`
+  }).join('')
+}
+
 // Update period subtitle
 function dbRefreshPeriodTitle(){
   const p=dbGetPeriod()
@@ -3651,27 +4909,28 @@ function dbRefreshPeriodTitle(){
     return
   }
   if(titleEl) titleEl.textContent='Monthly Date Budget 💑'
-  if(subEl) subEl.textContent='Period: '+esc(p.name)+(p.start?' · Started '+fmtD(p.start):'')
+  if(subEl) subEl.textContent='Period: '+esc(p.name)+(p.start?' · Started '+fmtD(p.start):'')+(p.days?' · '+p.days+' day budget':' · No deadline')
   // Build deadline chip exactly like My Budget tab
   if(!chipEl) return
   const total=dbTotalFunds(), spent=dbTotalSpent(), rem=Math.max(0,total-spent)
   const bp=pct(spent,total||1)
-  if(p.end){
-    const endD=new Date(p.end+'T23:59:59')
+  const hasDays=p.days&&p.days>0
+  const endStr=hasDays?addD(p.start||tod(),p.days-1):null
+  if(hasDays&&endStr){
+    const endD=new Date(endStr+'T23:59:59')
     const now=new Date()
     const dl=Math.max(0,Math.ceil((endD-now)/864e5))
     const urg=dl<=5
     const startD=p.start?new Date(p.start+'T12:00:00'):now
     const elapsed=Math.max(0,Math.floor((now-startD)/864e5))
     const dailyAvg=elapsed>0?spent/elapsed:0
-    const totalDays=p.start?Math.max(1,Math.ceil((endD-startD)/864e5)):30
-    const proj=Math.round(dailyAvg*totalDays)
+    const proj=Math.round(dailyAvg*p.days)
     chipEl.innerHTML=`
       <div class="cdchip ${urg?'urg':''}" style="margin-bottom:14px">
         <div class="cd-num" style="${urg?'color:var(--danger)':'color:var(--pink)'}">${dl}</div>
         <div class="cd-txt">
-          <strong style="${urg?'color:var(--danger)':''}">days remaining in ${esc(p.name)}</strong><br>
-          <span style="font-size:11px">${fmtD(p.start||tod())} → ${fmtD(p.end)} · Daily avg: ${P(dailyAvg)}/day · Projected: ${P(proj)}</span>
+          <strong style="${urg?'color:var(--danger)':''}">${dl} days remaining in ${esc(p.name)}</strong><br>
+          <span style="font-size:11px">${fmtD(p.start||tod())} → ${fmtD(endStr)} · ${p.days} day budget · Daily avg: ${P(dailyAvg)}/day · Projected: ${P(proj)}</span>
           ${dl===0?'<br><span style="color:var(--danger);font-weight:700;font-size:12px">⚠️ Period ended — click 📅 Period to reset</span>':''}
         </div>
       </div>
@@ -3684,1783 +4943,26 @@ function dbRefreshPeriodTitle(){
         <div class="pmeta"><span>${P(spent)} spent</span><span>${P(rem)} remaining</span></div>
       </div>`
   } else {
+    const elapsed2=p.start?Math.max(1,Math.floor((new Date()-new Date(p.start+'T12:00:00'))/864e5)):1
+    const dailyAvg2=elapsed2>0?spent/elapsed2:0
     chipEl.innerHTML=`
       <div class="cdchip" style="margin-bottom:14px">
         <div class="cd-num">∞</div>
         <div class="cd-txt">
-          <strong>No deadline set · ${esc(p.name)}</strong><br>
-          <span style="font-size:11px">Started ${fmtD(p.start||tod())} · Click 📅 Period to set a deadline</span>
+          <strong>No Deadline · ${esc(p.name)}</strong><br>
+          <span style="font-size:11px">Started ${fmtD(p.start||tod())} · Daily avg: ${P(dailyAvg2)}/day</span>
         </div>
+      </div>
+      <div class="card card-sm" style="margin-bottom:14px">
+        <div class="chd" style="margin-bottom:10px">
+          <span class="ctitle">💑 ${esc(p.name)} Budget Progress</span>
+          <span class="badge ${bp>85?'bd':'ba'}">${bp}% used</span>
+        </div>
+        <div class="pw" style="height:12px"><div class="pf ${bp>85?'pfd':'pfp'}" style="width:${bp}%"></div></div>
+        <div class="pmeta"><span>${P(spent)} spent</span><span>${P(rem)} remaining</span></div>
       </div>`
   }
 }
-
-// Render history section
-function dbRenderHistory(){
-  const hist=dbGetHistory()
-  const cntEl=document.getElementById('db-history-cnt')
-  const listEl=document.getElementById('db-history-list')
-  if(cntEl) cntEl.textContent=hist.length+' period'+(hist.length!==1?'s':'')
-  const card=document.getElementById('db-history-card')
-  if(card) card.style.display=hist.length===0?'none':'block'
-  if(!listEl) return
-  if(!hist.length){listEl.innerHTML='';return}
-  listEl.innerHTML=[...hist].reverse().map(function(h){
-    const rem=Math.max(0,(h.totalFunds||0)-(h.totalSpent||0))
-    return '<div style="border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;background:var(--bg2)">'
-      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:4px;margin-bottom:8px">'
-        +'<div><div style="font-size:14px;font-weight:700;color:var(--pink)">'+esc(h.name||'Unnamed Period')+'</div>'
-        +'<div style="font-size:11px;color:var(--txt3)">'+(h.start?fmtD(h.start):'')+(h.end?' → '+fmtD(h.end):'')+'</div></div>'
-        +'<span style="font-size:11px;color:var(--txt3);white-space:nowrap">📦 '+fmtD(h.archivedAt||h.end||'')+'</span>'
-      +'</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'
-        +'<div style="flex:1;min-width:80px;background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
-          +'<div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px">Funds</div>'
-          +'<div style="font-size:14px;font-weight:800;color:var(--pink)">'+P(h.totalFunds||0)+'</div></div>'
-        +'<div style="flex:1;min-width:80px;background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
-          +'<div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px">Spent</div>'
-          +'<div style="font-size:14px;font-weight:800;color:var(--danger)">'+P(h.totalSpent||0)+'</div></div>'
-        +'<div style="flex:1;min-width:80px;background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
-          +'<div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px">Saved</div>'
-          +'<div style="font-size:14px;font-weight:800;color:var(--teal)">'+P(rem)+'</div></div>'
-      +'</div>'
-      +'<div style="font-size:11px;color:var(--txt3);margin-top:8px">'
-        +((h.expenses||0)+' expense'+(h.expenses!==1?'s':'')+' · '+(h.funds||0)+' fund entr'+(h.funds!==1?'ies':'y'))
-      +'</div>'
-    +'</div>'
-  }).join('')
-}
-
-// Open Set Period modal
-function openDatePeriod(){
-  const p=dbGetPeriod()||{}
-  document.getElementById('dp-name').value=p.name||''
-  document.getElementById('dp-start').value=p.start||tod()
-  document.getElementById('dp-end').value=p.end||''
-  document.getElementById('dp-err').style.display='none'
-  // Show Reset button only if a period is active
-  var resetBtn=document.getElementById('dp-reset-btn')
-  if(resetBtn) resetBtn.style.display=p.name?'inline-flex':'none'
-  document.getElementById('m-datePeriod').style.display='flex'
-}
-
-// Save period settings
-async function saveDatePeriod(){
-  var name=(document.getElementById('dp-name').value||'').trim()
-  var start=document.getElementById('dp-start').value||tod()
-  var end=document.getElementById('dp-end').value||''
-  if(!name){document.getElementById('dp-err').textContent='Enter a period name';document.getElementById('dp-err').style.display='block';return}
-  if(!S.dateBudget.period) S.dateBudget.period={}
-  S.dateBudget.period.name=name
-  S.dateBudget.period.start=start
-  S.dateBudget.period.end=end
-  dbSave()
-  // Sync to Supabase
-  if(SB_READY&&AU_SB_ID){
-    await _sb.from('date_budget_periods').upsert({
-      id:S.dateBudget.period.id||dbUid(),
-      user_id:AU_SB_ID,name:name,start_date:start,
-      end_date:end||null,is_active:true
-    }).catch(function(){})
-  }
-  cm('m-datePeriod')
-  toast('Period "'+name+'" saved! 📅')
-  dbRefreshPeriodTitle()
-  renderDateBudget()
-}
-
-// Reset / archive current period and start fresh
-async function resetDatePeriod(){
-  var p=dbGetPeriod()
-  if(!p||!p.name){cm('m-datePeriod');return}
-  if(!confirm('Archive "'+p.name+'" and reset the budget for a new period?\n\nAll current funds, expenses and categories will be moved to History.')) return
-  // Archive current period to history
-  if(!S.dateBudget.history) S.dateBudget.history=[]
-  var snapshot={
-    id:dbUid(),
-    name:p.name,
-    start:p.start,
-    end:p.end,
-    archivedAt:tod(),
-    totalFunds:dbTotalFunds(),
-    totalSpent:dbTotalSpent(),
-    funds:(S.dateBudget.funds||[]).length,
-    expenses:(S.dateBudget.expenses||[]).length
-  }
-  S.dateBudget.history.push(snapshot)
-  // Reset active data
-  S.dateBudget.funds=[]
-  S.dateBudget.expenses=[]
-  // Keep categories but reset period
-  var newName=prompt('Enter name for the new period (e.g. July 2026):')||'New Period'
-  S.dateBudget.period={name:newName,start:tod(),end:''}
-  dbSave()
-  // Sync archive to Supabase
-  if(SB_READY&&AU_SB_ID){
-    await _sb.from('date_budget_history').insert({
-      id:snapshot.id,user_id:AU_SB_ID,period_name:snapshot.name,
-      start_date:snapshot.start,end_date:snapshot.end||null,
-      archived_at:snapshot.archivedAt,total_funds:snapshot.totalFunds,
-      total_spent:snapshot.totalSpent
-    }).catch(function(){})
-    // Clear active funds/expenses in Supabase
-    await _sb.from('date_budget_funds').delete().eq('user_id',AU_SB_ID).catch(function(){})
-    await _sb.from('date_budget_expenses').delete().eq('user_id',AU_SB_ID).catch(function(){})
-  }
-  cm('m-datePeriod')
-  toast('Budget reset! New period "'+newName+'" started 🎉')
-  dbRefreshPeriodTitle()
-  renderDateBudget()
-}
-
-// Edit Fund entry
-function openEditFund(fid){
-  var fd=(S.dateBudget.funds||[]).find(function(f){return f.id===fid}); if(!fd)return
-  document.getElementById('def-fid').value=fid
-  document.getElementById('def-amt').value=fd.amt
-  document.getElementById('def-note').value=fd.note||''
-  document.getElementById('def-date').value=fd.date
-  document.getElementById('def-who').value=fd.who||'u1'
-  var o1=document.getElementById('def-who-u1');if(o1) o1.textContent=USERS.u1.name
-  var o2=document.getElementById('def-who-u2');if(o2) o2.textContent=USERS.u2.name
-  document.getElementById('def-err').style.display='none'
-  document.getElementById('m-dateEditFund').style.display='flex'
-}
-async function saveEditFund(){
-  var fid=document.getElementById('def-fid').value
-  var amt=parseFloat(document.getElementById('def-amt').value)
-  var who=document.getElementById('def-who').value||'u1'
-  var note=(document.getElementById('def-note').value||'').trim()
-  var date=document.getElementById('def-date').value||tod()
-  if(!amt||amt<=0){document.getElementById('def-err').textContent='Enter a valid amount';document.getElementById('def-err').style.display='block';return}
-  var idx=-1
-  for(var i=0;i<(S.dateBudget.funds||[]).length;i++){
-    if(S.dateBudget.funds[i].id===fid){idx=i;break}
-  }
-  if(idx>-1){
-    S.dateBudget.funds[idx].amt=amt
-    S.dateBudget.funds[idx].who=who
-    S.dateBudget.funds[idx].note=note
-    S.dateBudget.funds[idx].date=date
-  }
-  if(SB_READY&&AU_SB_ID){
-    await _sb.from('date_budget_funds').update({amount:amt,funded_by:who,note:note||null,fund_date:date}).eq('id',fid)
-  }
-  dbSave()
-  cm('m-dateEditFund')
-  toast('Fund entry updated ✏️')
-  renderDateBudget()
-}
-
-
-// ── SUPABASE LOAD on login ───────────────────────────────────
-async function loadDateBudgetFromSB(){
-  if(!SB_READY||!AU_SB_ID) return
-  try{
-    var cr=await _sb.from('date_budget_categories').select('*').order('created_at')
-    var er=await _sb.from('date_budget_expenses').select('*').order('expense_date',{ascending:false})
-    var fr=await _sb.from('date_budget_funds').select('*').order('fund_date',{ascending:false})
-
-    if(!cr.error){
-      var dbRows=cr.data||[]
-      // If no categories exist in DB yet, seed the defaults for this user
-      if(dbRows.length===0){
-        await dbSeedDefaultCats()
-        // Re-fetch after seeding
-        var cr2=await _sb.from('date_budget_categories').select('*').order('created_at')
-        dbRows=cr2.data||[]
-      }
-      // All categories (default + custom) come from DB now
-      S.dateBudget.customCats=dbRows.map(function(c){
-        return{id:c.id,name:c.name,icon:c.icon||'💕',limit:+(c.limit_amount)||0,color:c.color||'#e91e8c'}
-      })
-    }
-    if(!er.error) S.dateBudget.expenses=(er.data||[]).map(function(e){return{id:e.id,desc:e.description,amt:+(e.amount)||0,catId:e.category_id||'dbc-other',who:e.paid_by||'u1',date:e.expense_date,note:e.note||''}})
-    if(!fr.error) S.dateBudget.funds=(fr.data||[]).map(function(f){return{id:f.id,amt:+(f.amount)||0,who:f.funded_by||'u1',note:f.note||'',date:f.fund_date}})
-    // Load history from Supabase
-    try{
-      var hr=await _sb.from('date_budget_history').select('*').order('created_at',{ascending:false})
-      if(!hr.error&&hr.data) S.dateBudget.history=(hr.data||[]).map(function(h){
-        return{id:h.id,name:h.period_name,start:h.start_date,end:h.end_date,
-          archivedAt:h.archived_at,totalFunds:+h.total_funds||0,totalSpent:+h.total_spent||0,
-          funds:0,expenses:0}
-      })
-    }catch(e){}
-    // Load active period
-    try{
-      var pr=await _sb.from('date_budget_periods').select('*').eq('is_active',true).order('created_at',{ascending:false}).limit(1)
-      if(!pr.error&&pr.data&&pr.data.length){
-        var pd=pr.data[0]
-        S.dateBudget.period={id:pd.id,name:pd.name,start:pd.start_date,end:pd.end_date||''}
-      }
-    }catch(e){}
-    dbSave()
-    console.log('Date budget loaded:',S.dateBudget.customCats.length,'cats,',S.dateBudget.expenses.length,'expenses,',S.dateBudget.funds.length,'funds')
-  }catch(err){console.error('loadDateBudgetFromSB error:',err)}
-}
-
-async function dbSeedDefaultCats(){
-  // Seed all 6 default categories into Supabase for this user (runs once on first login)
-  var toInsert=DB_DEFAULT_CATS.map(function(c){
-    return{
-      id:dbUid(),
-      user_id:AU_SB_ID,
-      name:c.name,
-      icon:c.icon,
-      color:c.color,
-      limit_amount:0
-    }
-  })
-  var res=await _sb.from('date_budget_categories').insert(toInsert)
-  if(res.error) console.error('dbSeedDefaultCats error:',res.error)
-  else console.log('✅ Default date budget categories seeded to Supabase')
-}
-
-
-// ─── CATEGORIES ───────────────────────────────────────────
-function openEditCat(e,cid){
-  CP(e);const c=S.cats.find(x=>x.id===cid);if(!c)return
-  document.getElementById('cat-eid').value=cid;document.getElementById('cat-name').value=c.name;document.getElementById('cat-icon').value=c.icon;document.getElementById('cat-color').value=c.color
-  document.getElementById('cat-mtitle').textContent='✏️ Edit Category';document.getElementById('cat-err').style.display='none'
-  document.getElementById('m-addCat').style.display='flex'
-}
-async function saveCat(e){
-  CP(e);const eid=document.getElementById('cat-eid').value,rawName=document.getElementById('cat-name').value.trim(),icon=document.getElementById('cat-icon').value.trim()||rawName.match(/^\p{Emoji}/u)?.[0]||'🏷️',color=document.getElementById('cat-color').value
-  if(!rawName){showErr('cat-err','Enter a category name');return}
-  if(eid){
-    if(SB_READY&&AU_SB_ID)await _sb.from('categories').update({name:rawName,icon,color}).eq('id',eid)
-    const idx=S.cats.findIndex(c=>c.id===eid);if(idx>-1)S.cats[idx]={...S.cats[idx],name:rawName,icon,color};toast('Category updated ✏️')
-  } else {
-    let newId=uid()
-    if(SB_READY&&AU_SB_ID){const saved=await _sb.from('categories').insert({user_id:AU_SB_ID,name:rawName,icon,color}).select().single();if(saved.data)newId=saved.data.id}
-    S.cats.push({id:newId,name:rawName,icon,color});toast('Category created! 🏷️')
-  }
-  cm('m-addCat');renderCats()
-}
-function delCat(cid){
-  const fb=S.cats.find(c=>c.name==='Other')?.id||S.cats[0]?.id
-  S.cats=S.cats.filter(c=>c.id!==cid);['u1','u2'].forEach(u=>(S.expenses[u]||[]).forEach(e=>{if(e.catId===cid)e.catId=fb}))
-  toast('Category deleted 🗑️');renderCats()
-}
-
-// ─── TODO ─────────────────────────────────────────────────
-// ─── TODO CATEGORY HELPERS ────────────────────────────────
-function toggleTodoCustCat(){
-  const v=document.getElementById('todo-cat')?.value
-  const wrap=document.getElementById('todo-custcat-wrap')
-  if(wrap)wrap.style.display=(v==='other'?'block':'none')
-}
-function toggleSchedCustType(){
-  const v=document.getElementById('sched-type')?.value
-  const wrap=document.getElementById('sched-custtype-wrap')
-  if(wrap)wrap.style.display=(v==='other'?'block':'none')
-}
-
-// Map category value → display label (supports custCat)
-const TODO_CAT_LABELS={
-  school:'🎓 School',personal:'👤 Personal',finance:'💰 Finance',
-  couple:'💑 Couple',work:'💼 Work',health:'💊 Health',other:'✨ Other'
-}
-function todoDisplayCat(t){
-  if(t.cat==='other'&&t.custCat)return t.custCat
-  return TODO_CAT_LABELS[t.cat]||'✨ Other'
-}
-
-const SCHED_TYPE_LABELS={
-  online:'💻 Online',onsite:'🏫 On-site',lab:'🔬 Lab',study:'📖 Study',other:'✨ Other'
-}
-function schedDisplayType(s){
-  if(s.type==='other'&&s.custType)return s.custType
-  return SCHED_TYPE_LABELS[s.type]||'📚 Class'
-}
-
-async function saveTodo(e){
-  CP(e)
-  const eid=document.getElementById('todo-eid').value
-  const title=document.getElementById('todo-title').value.trim()
-  const due=document.getElementById('todo-due').value
-  const pri=document.getElementById('todo-pri').value
-  const notes=document.getElementById('todo-notes').value.trim()
-  const cat=document.getElementById('todo-cat').value
-  const custCat=cat==='other'?(document.getElementById('todo-custcat')?.value?.trim()||''):''
-  const tu=S._todoUser==='mine'?AU:(AU==='u1'?'u2':'u1')
-  const sbUserId=tu==='u1'?AU_SB_ID:AU_PARTNER_ID
-  if(!title){showErr('todo-err','Enter a task title');return}
-  if(eid){
-    if(SB_READY&&sbUserId)await sbUpdateTodo(eid,{title,due_date:due||null,priority:pri,notes,category:cat,custom_cat:custCat})
-    const idx=S.todos.findIndex(t=>t.id===eid)
-    if(idx>-1)S.todos[idx]={...S.todos[idx],title,due,pri,notes,cat,custCat}
-    toast('Task updated ✏️')
-  } else {
-    let newId=uid()
-    if(SB_READY&&sbUserId){
-      const saved=await sbCreateTodo({user_id:sbUserId,title,due_date:due||null,priority:pri,notes,category:cat,custom_cat:custCat,is_done:false})
-      if(saved)newId=saved.id; else{showErr('todo-err','Failed to save');return}
-    }
-    S.todos.push({id:newId,title,due,pri,cat,custCat,notes,done:false,uid:tu})
-    toast('Task added! ✅')
-  }
-  cm('m-addTodo');renderTodo()
-}
-
-function openEditTodo(e,id){
-  CP(e)
-  const t=S.todos.find(x=>x.id===id);if(!t)return
-  document.getElementById('todo-eid').value=id
-  document.getElementById('todo-title').value=t.title
-  document.getElementById('todo-due').value=t.due||''
-  document.getElementById('todo-pri').value=t.pri||'mid'
-  document.getElementById('todo-notes').value=t.notes||''
-  const catEl=document.getElementById('todo-cat')
-  if(catEl)catEl.value=t.cat||'personal'
-  const custWrap=document.getElementById('todo-custcat-wrap')
-  const custInp=document.getElementById('todo-custcat')
-  if(custWrap)custWrap.style.display=(t.cat==='other'?'block':'none')
-  if(custInp)custInp.value=t.custCat||''
-  document.getElementById('todo-mtitle').textContent='✏️ Edit Task'
-  document.getElementById('todo-err').style.display='none'
-  document.getElementById('m-addTodo').style.display='flex'
-}
-async function delTodo(id){if(SB_READY&&AU_SB_ID)await sbDeleteTodo(id);S.todos=S.todos.filter(t=>t.id!==id);toast('Task deleted 🗑️');renderTodo()}
-
-// ─── FX ───────────────────────────────────────────────────
-const CATS_FX=['🐱','😺','😸','🐾','✨','🎀','💕','🌸','🐈','🌺']
-function CP(e){if(!e?.clientX)return;const el=document.createElement('div');el.className='catpop';el.textContent=CATS_FX[Math.floor(Math.random()*CATS_FX.length)];el.style.left=(e.clientX+(Math.random()*20-10))+'px';el.style.top=(e.clientY-14)+'px';document.body.appendChild(el);setTimeout(()=>el.remove(),750)}
-function toast(msg,icon='✅'){const el=document.createElement('div');el.className='toast';el.innerHTML=`<span>${icon}</span><span>${esc(msg)}</span>`;document.body.appendChild(el);setTimeout(()=>{el.style.transition='opacity .25s';el.style.opacity='0';setTimeout(()=>el.remove(),260)},2800)}
-function showErr(id,msg){const el=document.getElementById(id);if(el){el.textContent=msg;el.style.display='block'}}
-
-// ─── INIT ─────────────────────────────────────────────────
-
-// ═══════════════════════════════════════════════════
-//  WALLET — no-time-limit money tracker
-// ═══════════════════════════════════════════════════
-
-function openAddTxn(scope, type){
-  S._ctx = scope
-  document.getElementById('txn-scope').value = scope
-  document.getElementById('txn-desc').value = ''
-  document.getElementById('txn-amt').value = ''
-  document.getElementById('txn-cat').value = ''
-  document.getElementById('txn-date').value = new Date().toISOString().split('T')[0]
-  const errEl = document.getElementById('txn-err')
-  if(errEl) errEl.style.display = 'none'
-  setTxnType(type || 'income')
-  document.getElementById('m-addTxn').style.display = 'flex'
-  const titleEl = document.querySelector('#m-addTxn .mtitle')
-  if(titleEl) titleEl.textContent = scope === 'mine' ? '💵 Add to My Wallet' : '👛 Add to Partner Wallet'
-}
-
-let _txnType = 'income'
-function setTxnType(t){
-  _txnType = t
-  const bi = document.getElementById('txn-type-income')
-  const be = document.getElementById('txn-type-expense')
-  if(bi) { bi.className = t === 'income' ? 'btn btn-p' : 'btn btn-g' }
-  if(be) { be.className = t === 'expense' ? 'btn btn-p' : 'btn btn-g' }
-}
-
-async function saveWalletTxn(e){
-  CP(e)
-  const scope = document.getElementById('txn-scope').value || 'mine'
-  const uid2 = scope === 'mine' ? AU : (AU === 'u1' ? 'u2' : 'u1')
-  const desc = document.getElementById('txn-desc').value.trim()
-  const amt  = parseFloat(document.getElementById('txn-amt').value)
-  const date = document.getElementById('txn-date').value
-  const cat  = document.getElementById('txn-cat').value.trim()
-  if(!desc || !amt || amt <= 0 || !date){ showErr('txn-err','Fill all required fields'); return }
-  const sbUserId = uid2 === 'u1' ? AU_SB_ID : AU_PARTNER_ID
-  const txn = { id: uid(), uid: uid2, desc, amt, type: _txnType, date, cat }
-  // Save to Supabase
-  if(SB_READY && sbUserId){
-    const { data, error } = await _sb.from('wallet_transactions').insert({
-      user_id: sbUserId, description: desc, amount: amt,
-      type: _txnType, transaction_date: date, category: cat || null
-    }).select().single()
-    if(error){ showErr('txn-err','Failed to save. Check Supabase.'); return }
-    if(data) txn.id = data.id
-  }
-  if(!S.wallet[uid2]) S.wallet[uid2] = []
-  S.wallet[uid2].unshift(txn)
-  cm('m-addTxn')
-  toast(`Transaction saved! ${_txnType === 'income' ? '💚' : '❤️'}`)
-  renderWallet(scope)
-}
-
-async function deleteWalletTxn(scope, tid){
-  const uid2 = scope === 'mine' ? AU : (AU === 'u1' ? 'u2' : 'u1')
-  if(!confirm('Delete this transaction?')) return
-  if(SB_READY && AU_SB_ID){
-    await _sb.from('wallet_transactions').delete().eq('id', tid)
-  }
-  S.wallet[uid2] = (S.wallet[uid2] || []).filter(t => t.id !== tid)
-  toast('Transaction deleted 🗑️')
-  renderWallet(scope)
-}
-
-function renderWallet(scope){
-  const uid2 = scope === 'mine' ? AU : (AU === 'u1' ? 'u2' : 'u1')
-  const u    = USERS[uid2]
-  const el   = document.getElementById(scope === 'mine' ? 'mymoney-content' : 'partnermoney-content')
-  const titleEl = document.getElementById(scope === 'mine' ? 'mymoney-title' : 'partnermoney-title')
-  if(titleEl) titleEl.textContent = scope === 'mine'
-    ? `${u.name}'s Wallet 💵`
-    : `${u.name}'s Wallet 👛`
-  if(!el) return
-  const txns = (S.wallet[uid2] || []).slice().sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
-  const totalInc = txns.filter(t => t.type === 'income').reduce((s,t) => s + t.amt, 0)
-  const totalExp = txns.filter(t => t.type === 'expense').reduce((s,t) => s + t.amt, 0)
-  const bal = totalInc - totalExp
-  const isOwn = scope === 'mine'
-  el.innerHTML = `
-    <div class="wallet-hero">
-      <div class="wallet-label">Total Balance</div>
-      <div class="wallet-bal">${P(bal)}</div>
-      <div class="wallet-sub">
-        <span>💚 In: ${P(totalInc)}</span>
-        <span>❤️ Out: ${P(totalExp)}</span>
-        <span>📝 ${txns.length} transactions</span>
-      </div>
-    </div>
-    <div class="wallet-actions">
-      <button class="btn btn-p" onclick="openAddTxn('${scope}','income');CP(event)">💚 Add Income</button>
-      <button class="btn" style="background:rgba(255,59,48,.12);color:#ff3b30;border-color:rgba(255,59,48,.25)" onclick="openAddTxn('${scope}','expense');CP(event)">❤️ Add Expense</button>
-    </div>
-    <div class="card" style="padding:14px 16px">
-      <div class="chd" style="margin-bottom:10px">
-        <span class="ctitle">📋 All Transactions</span>
-        <span style="font-size:11px;color:var(--txt3)">${txns.length} entries</span>
-      </div>
-      ${txns.length === 0
-        ? `<div class="wallet-empty"><div style="font-size:40px;margin-bottom:10px">💵</div><div style="font-size:14px;font-weight:700;margin-bottom:4px">No transactions yet</div><p style="font-size:12px">Tap "Add Income" or "Add Expense" to get started!</p></div>`
-        : `<div class="txn-list">${txns.map(t => `
-          <div class="txn-item">
-            <div class="txn-icon ${t.type === 'income' ? 'inc' : 'exp'}">${t.type === 'income' ? '💚' : '❤️'}</div>
-            <div class="txn-info">
-              <div class="txn-desc">${esc(t.desc)}</div>
-              <div class="txn-meta">${fmtD(t.date)}${t.cat ? ' · ' + esc(t.cat) : ''} · ${u.avatar} ${u.name}</div>
-            </div>
-            <div class="txn-amt ${t.type === 'income' ? 'inc' : 'exp'}">${t.type === 'income' ? '+' : '-'}${P(t.amt)}</div>
-            ${isOwn ? `<button class="txn-del" onclick="deleteWalletTxn('${scope}','${t.id}')" title="Delete">🗑️</button>` : ''}
-          </div>`).join('')}</div>`
-      }
-    </div>`
-}
-
-// ── Load wallet transactions from Supabase ──────────────
-async function sbLoadWalletTxns(userId){
-  if(!SB_READY) return []
-  const { data, error } = await _sb.from('wallet_transactions')
-    .select('*').eq('user_id', userId).order('transaction_date', { ascending: false })
-  if(error){ console.warn('Wallet load error:', error); return [] }
-  return data || []
-}
-
-
-
-// ═══════════════════════════════════════════════════
-//  WALLET SUB-CATEGORIES
-// ═══════════════════════════════════════════════════
-let _wTxnType = 'income'
-function setWTxnType(t){
-  _wTxnType=t
-  document.getElementById('wtxn-income').className=t==='income'?'btn btn-p':'btn btn-g'
-  document.getElementById('wtxn-expense').className=t==='expense'?'btn btn-p':'btn btn-g'
-}
-function openAddWalletSub(){
-  document.getElementById('wsub-eid').value=''
-  document.getElementById('wsub-name').value=''
-  document.getElementById('wsub-balance').value='0'
-  document.getElementById('wsub-type').value='💵 Cash'
-  const errEl=document.getElementById('wsub-err');if(errEl)errEl.style.display='none'
-  const sb=document.getElementById('wsub-save-btn');if(sb)sb.textContent='Create'
-  document.querySelector('#m-addWalletSub .mtitle').textContent='💵 New Wallet'
-  document.getElementById('m-addWalletSub').style.display='flex'
-}
-function openEditWalletSub(wid){
-  const w=S.walletSubs.find(x=>x.id===wid);if(!w)return
-  document.getElementById('wsub-eid').value=wid
-  document.getElementById('wsub-name').value=w.name
-  document.getElementById('wsub-balance').value=w.openingBalance||0
-  document.getElementById('wsub-type').value=w.type
-  const sb=document.getElementById('wsub-save-btn');if(sb)sb.textContent='Save Changes'
-  document.querySelector('#m-addWalletSub .mtitle').textContent='✏️ Edit Wallet'
-  document.getElementById('m-addWalletSub').style.display='flex'
-}
-async function saveWalletSub(e){
-  CP(e)
-  const eid=document.getElementById('wsub-eid')?.value
-  const name=document.getElementById('wsub-name').value.trim()
-  const type=document.getElementById('wsub-type').value
-  const openingBal=parseFloat(document.getElementById('wsub-balance').value)||0
-  if(!name){showErr('wsub-err','Name is required');return}
-  if(eid){
-    const w=S.walletSubs.find(x=>x.id===eid);if(!w){showErr('wsub-err','Not found');return}
-    w.name=name;w.type=type;w.openingBalance=openingBal
-    if(SB_READY&&AU_SB_ID)await _sb.from('financial_accounts').update({name,account_type:type,opening_balance:openingBal}).eq('id',eid)
-    cm('m-addWalletSub');toast(`"${name}" updated! ✏️`);renderWallet('mine');return
-  }
-  const w={id:uid(),name,type,openingBalance:openingBal,transactions:[]}
-  if(SB_READY&&AU_SB_ID){
-    const {data,error}=await _sb.from('financial_accounts').insert({
-      user_id:AU_SB_ID,name,account_type:type,opening_balance:openingBal,account_section:'wallet'
-    }).select().single()
-    if(error){showErr('wsub-err','Failed to save. Run the Accounts SQL patch first.');return}
-    if(data)w.id=data.id
-  }
-  S.walletSubs.push(w)
-  cm('m-addWalletSub');toast(`"${name}" wallet created! 💵`);renderWallet('mine')
-}
-async function deleteWalletSub(wid){
-  if(!confirm('Delete this wallet and all its transactions?'))return
-  if(SB_READY&&AU_SB_ID)await _sb.from('financial_accounts').delete().eq('id',wid)
-  S.walletSubs=S.walletSubs.filter(w=>w.id!==wid)
-  toast('Wallet deleted 🗑️');renderWallet('mine')
-}
-function openAddWalletTxn(wid,type){
-  document.getElementById('wtxn-wid').value=wid
-  document.getElementById('wtxn-desc').value=''
-  document.getElementById('wtxn-amt').value=''
-  document.getElementById('wtxn-cat').value=''
-  document.getElementById('wtxn-date').value=new Date().toISOString().split('T')[0]
-  const errEl=document.getElementById('wtxn-err');if(errEl)errEl.style.display='none'
-  setWTxnType(type||'income')
-  document.getElementById('m-addWalletTxn').style.display='flex'
-}
-async function saveWalletSubTxn(e){
-  CP(e)
-  const wid=document.getElementById('wtxn-wid').value
-  const desc=document.getElementById('wtxn-desc').value.trim()
-  const amt=parseFloat(document.getElementById('wtxn-amt').value)
-  const date=document.getElementById('wtxn-date').value
-  const cat=document.getElementById('wtxn-cat').value.trim()
-  if(!desc||!amt||amt<=0||!date){showErr('wtxn-err','Fill all required fields');return}
-  const w=S.walletSubs.find(x=>x.id===wid);if(!w){showErr('wtxn-err','Wallet not found');return}
-  const txn={id:uid(),wid,desc,amt,type:_wTxnType,date,cat}
-  if(SB_READY&&AU_SB_ID){
-    const {data,error}=await _sb.from('account_transactions').insert({
-      account_id:wid,user_id:AU_SB_ID,description:desc,amount:amt,
-      type:_wTxnType,transaction_date:date,category:cat||null
-    }).select().single()
-    if(error){showErr('wtxn-err','Failed to save');return}
-    if(data)txn.id=data.id
-  }
-  if(!w.transactions)w.transactions=[]
-  w.transactions.unshift(txn)
-  cm('m-addWalletTxn');toast(`Transaction saved! ${_wTxnType==='income'?'💚':'❤️'}`);renderWallet('mine')
-}
-async function deleteWalletTxn2(wid,tid){
-  if(!confirm('Delete this transaction?'))return
-  const w=S.walletSubs.find(x=>x.id===wid);if(!w)return
-  if(SB_READY&&AU_SB_ID)await _sb.from('account_transactions').delete().eq('id',tid)
-  w.transactions=(w.transactions||[]).filter(t=>t.id!==tid)
-  toast('Transaction deleted 🗑️');renderWallet('mine')
-}
-function renderWallet(scope){
-  const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
-  const u=USERS[uid2]
-  const el=document.getElementById(scope==='mine'?'mymoney-content':'partnermoney-content')
-  const titleEl=document.getElementById(scope==='mine'?'mymoney-title':'partnermoney-title')
-  if(titleEl)titleEl.textContent=`${u.name}'s Wallet 💵`
-  if(!el)return
-  const wallets=scope==='mine'?S.walletSubs:[]
-  const grandBal=wallets.reduce((s,w)=>{
-    const txns=w.transactions||[]
-    const inc=txns.filter(t=>t.type==='income').reduce((x,t)=>x+t.amt,0)
-    const exp=txns.filter(t=>t.type==='expense').reduce((x,t)=>x+t.amt,0)
-    return s+(w.openingBalance||0)+inc-exp
-  },0)
-  el.innerHTML=`
-    <div class="wallet-hero">
-      <div class="wallet-label">Total Wallet Balance</div>
-      <div class="wallet-bal">${P(grandBal)}</div>
-      <div class="wallet-sub"><span>💳 ${wallets.length} wallet${wallets.length!==1?'s':''}</span></div>
-    </div>
-    ${wallets.length===0
-      ?`<div class="card"><div class="empty"><div class="empty-ico">💵</div><div class="empty-t">No wallets yet</div><p>Tap "+ New Wallet" to create your first wallet category!</p></div></div>`
-      :wallets.map(w=>{
-          const txns=w.transactions||[]
-          const inc=txns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amt,0)
-          const exp=txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amt,0)
-          const bal=(w.openingBalance||0)+inc-exp
-          const sorted=[...txns].sort((a,b)=>b.date.localeCompare(a.date))
-          return `<div class="wsub-card">
-            <div class="wsub-hd">
-              <div class="wsub-icon" style="background:var(--pink-soft,#f5e0ea)">${w.type?.split(' ')[0]||'💵'}</div>
-              <div class="wsub-info">
-                <div class="wsub-name">${esc(w.name)} <span style="font-size:11px;color:var(--txt3);font-weight:400">${w.type}</span></div>
-                <div class="wsub-bal" style="color:${bal>=0?'#34c759':'#ff3b30'}">${P(bal)}</div>
-                <div class="wsub-meta">💚 ${P((w.openingBalance||0)+inc)} in · ❤️ ${P(exp)} out</div>
-              </div>
-              <div class="wsub-actions">
-                <button class="btn btn-p btn-xs" onclick="openAddWalletTxn('${w.id}','income')">💚 In</button>
-                <button class="btn btn-xs" style="background:rgba(255,59,48,.12);color:#ff3b30;border-color:rgba(255,59,48,.25)" onclick="openAddWalletTxn('${w.id}','expense')">❤️ Out</button>
-                <button class="btn btn-xs btn-o" onclick="openEditWalletSub('${w.id}')">✏️</button>
-                <button class="btn btn-xs btn-d" onclick="deleteWalletSub('${w.id}')">🗑️</button>
-              </div>
-            </div>
-            ${sorted.length===0
-              ?'<div style="text-align:center;padding:8px;font-size:12px;color:var(--txt3)">No transactions yet</div>'
-              :`<div class="txn-list">${sorted.slice(0,5).map(t=>`
-                <div class="txn-item">
-                  <div class="txn-icon ${t.type==='income'?'inc':'exp'}">${t.type==='income'?'💚':'❤️'}</div>
-                  <div class="txn-info"><div class="txn-desc">${esc(t.desc)}</div><div class="txn-meta">${fmtD(t.date)}${t.cat?' · '+esc(t.cat):''}</div></div>
-                  <div class="txn-amt ${t.type==='income'?'inc':'exp'}">${t.type==='income'?'+':'-'}${P(t.amt)}</div>
-                  <button class="txn-del" onclick="deleteWalletTxn2('${w.id}','${t.id}')" title="Delete">🗑️</button>
-                </div>`).join('')}
-              ${sorted.length>5?`<div style="text-align:center;padding:6px;font-size:11px;color:var(--txt3)">+${sorted.length-5} more</div>`:''}</div>`
-            }
-          </div>`
-        }).join('')
-    }`
-}
-
-// ═══════════════════════════════════════════════════
-//  SAVINGS SUB-CATEGORIES (replaced simple savings)
-// ═══════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════
-//  SAVINGS SUB-CATEGORIES
-// ═══════════════════════════════════════════════════
-let _savCatColor = '#d4537e', _savEntryType = 'add'
-function selectSavCatColor(c,el){
-  _savCatColor=c
-  document.querySelectorAll('#savcat-colors .cat-color-swatch').forEach(s=>s.classList.remove('active'))
-  if(el)el.classList.add('active')
-  const cp=document.getElementById('savcat-custom-color');if(cp)cp.style.outline='none'
-}
-function selectSavCatColorCustom(color){
-  _savCatColor=color
-  document.querySelectorAll('#savcat-colors .cat-color-swatch').forEach(s=>s.classList.remove('active'))
-  const cp=document.getElementById('savcat-custom-color')
-  if(cp)cp.style.outline='3px solid #fff'
-}
-function setSavEntryType(t){
-  _savEntryType=t
-  document.getElementById('saventry-add').className=t==='add'?'btn btn-p':'btn btn-g'
-  document.getElementById('saventry-withdraw').className=t==='withdraw'?'btn btn-p':'btn btn-g'
-}
-function openAddSavCat(scope){
-  document.getElementById('savcat-scope').value=scope
-  document.getElementById('savcat-name').value=''
-  document.getElementById('savcat-icon').value='🎯'
-  _savCatColor='#d4537e'
-  document.querySelectorAll('#savcat-colors .cat-color-swatch').forEach((s,i)=>s.classList.toggle('active',i===0))
-  const cp=document.getElementById('savcat-custom-color');if(cp){cp.value='#d4537e';cp.style.outline='none'}
-  const cont=document.getElementById('savcat-colors');if(cont)cont.dataset.customColor=''
-  const errEl=document.getElementById('savcat-err');if(errEl)errEl.style.display='none'
-  document.getElementById('m-addSavCat').style.display='flex'
-}
-async function saveSavCat(e){
-  CP(e)
-  const scope=document.getElementById('savcat-scope').value||'mine'
-  const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
-  const name=document.getElementById('savcat-name').value.trim()
-  const icon=document.getElementById('savcat-icon').value.trim()||'🎯'
-  const sbUserId=uid2==='u1'?AU_SB_ID:AU_PARTNER_ID
-  if(!name){showErr('savcat-err','Name is required');return}
-  const cat={id:uid(),uid:uid2,name,icon,color:_savCatColor,entries:[]}
-  if(SB_READY&&sbUserId){
-    const {data,error}=await _sb.from('personal_savings_goals').insert({
-      user_id:sbUserId,title:name,icon,target_amount:0,color:_savCatColor
-    }).select().single()
-    if(error){showErr('savcat-err','Failed to save');return}
-    if(data)cat.id=data.id
-  }
-  if(!S.savingsCats[uid2])S.savingsCats[uid2]=[]
-  S.savingsCats[uid2].push(cat)
-  cm('m-addSavCat');toast(`"${name}" savings created! 🐱`);renderISavings(scope)
-}
-async function deleteSavCat(scope,catId){
-  const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
-  if(!confirm('Delete this savings category and all its entries?'))return
-  if(SB_READY&&AU_SB_ID)await _sb.from('personal_savings_goals').delete().eq('id',catId)
-  S.savingsCats[uid2]=(S.savingsCats[uid2]||[]).filter(c=>c.id!==catId)
-  toast('Category deleted 🗑️');renderISavings(scope)
-}
-function openAddSavEntry(scope,catId){
-  document.getElementById('saventry-scope').value=scope
-  document.getElementById('saventry-catid').value=catId
-  document.getElementById('saventry-amt').value=''
-  document.getElementById('saventry-note').value=''
-  document.getElementById('saventry-date').value=new Date().toISOString().split('T')[0]
-  const errEl=document.getElementById('saventry-err');if(errEl)errEl.style.display='none'
-  setSavEntryType('add')
-  document.getElementById('m-addSavEntry').style.display='flex'
-}
-async function saveSavEntry(e){
-  CP(e)
-  const scope=document.getElementById('saventry-scope').value||'mine'
-  const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
-  const catId=document.getElementById('saventry-catid').value
-  const amt=parseFloat(document.getElementById('saventry-amt').value)
-  const note=document.getElementById('saventry-note').value.trim()
-  const date=document.getElementById('saventry-date').value
-  const sbUserId=uid2==='u1'?AU_SB_ID:AU_PARTNER_ID
-  if(!amt||amt<=0||!date){showErr('saventry-err','Enter a valid amount and date');return}
-  const cat=(S.savingsCats[uid2]||[]).find(c=>c.id===catId)
-  if(!cat){showErr('saventry-err','Category not found');return}
-  const entry={id:uid(),catId,type:_savEntryType,amt,note,date}
-  if(SB_READY&&sbUserId){
-    const {data,error}=await _sb.from('personal_savings_contributions').insert({
-      goal_id:catId,user_id:sbUserId,amount:_savEntryType==='add'?amt:-amt,
-      note:note||null,contribution_date:date
-    }).select().single()
-    if(error){showErr('saventry-err','Failed to save');return}
-    if(data)entry.id=data.id
-  }
-  if(!cat.entries)cat.entries=[]
-  cat.entries.unshift(entry)
-  cm('m-addSavEntry');toast(_savEntryType==='add'?'Savings added! 💚':'Withdrawal recorded ❤️');renderISavings(scope)
-}
-async function deleteSavEntry2(scope,catId,entryId){
-  const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
-  if(!confirm('Delete this savings entry?'))return
-  if(SB_READY&&AU_SB_ID)await _sb.from('personal_savings_contributions').delete().eq('id',entryId)
-  const cat=(S.savingsCats[uid2]||[]).find(c=>c.id===catId)
-  if(cat)cat.entries=(cat.entries||[]).filter(en=>en.id!==entryId)
-  toast('Entry deleted 🗑️');renderISavings(scope)
-}
-function renderISavings(scope){
-  const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
-  const u=USERS[uid2]
-  const el=document.getElementById(scope==='mine'?'mysavings-content':'partnersavings-content')
-  const titleEl=document.getElementById(scope==='mine'?'mysavings-title':'partnersavings-title')
-  if(titleEl)titleEl.textContent=scope==='mine'?`${u.name}'s Savings 🐱`:`${u.name}'s Savings 🐈`
-  if(!el)return
-  // PRIVACY: Partner savings are private — only the partner can see their own savings
-  if(scope==='partner'){
-    el.innerHTML=`<div class="card" style="text-align:center;padding:32px 20px">
-      <div style="font-size:48px;margin-bottom:12px">🔒</div>
-      <div style="font-size:16px;font-weight:700;color:var(--txt);margin-bottom:8px">${u.name}'s Savings are Private</div>
-      <div style="font-size:13px;color:var(--txt3)">Personal savings are only visible to the account owner.<br>Your partner can only see their own savings when they log in.</div>
-    </div>`
-    return
-  }
-  const cats=S.savingsCats[uid2]||[]
-  const grandTotal=cats.reduce((s,c)=>{
-    return s+(c.entries||[]).reduce((x,en)=>x+(en.type==='add'?en.amt:-en.amt),0)
-  },0)
-  const isOwn=scope==='mine'
-  el.innerHTML=`
-    <div class="isav-hero" style="background:linear-gradient(135deg,#34c759,#007aff)">
-      <div class="isav-hero-label">Total Savings Balance</div>
-      <div class="isav-hero-amt">${P(grandTotal)}</div>
-      <div class="isav-hero-sub">across ${cats.length} categor${cats.length!==1?'ies':'y'}</div>
-    </div>
-    ${cats.length===0
-      ?`<div class="card"><div class="empty"><div class="empty-ico">🐱</div><div class="empty-t">No savings categories yet</div><p>Tap "+ New Category" to create one!</p></div></div>`
-      :cats.map(cat=>{
-          const bal=(cat.entries||[]).reduce((s,en)=>s+(en.type==='add'?en.amt:-en.amt),0)
-          const totalIn=(cat.entries||[]).filter(en=>en.type==='add').reduce((s,en)=>s+en.amt,0)
-          const totalOut=(cat.entries||[]).filter(en=>en.type==='withdraw').reduce((s,en)=>s+en.amt,0)
-          const sorted=[...(cat.entries||[])].sort((a,b)=>b.date.localeCompare(a.date))
-          return `<div class="isav-goal">
-            <div class="isav-goal-hd">
-              <div class="isav-goal-icon" style="background:${cat.color}22;color:${cat.color}">${cat.icon}</div>
-              <div class="isav-goal-info">
-                <div class="isav-goal-name">${esc(cat.name)}</div>
-                <div class="isav-goal-meta" style="color:${bal>=0?'#34c759':'#ff3b30'};font-weight:700">${P(bal)}</div>
-                <div style="font-size:10px;color:var(--txt3)">💚 +${P(totalIn)} · ❤️ -${P(totalOut)}</div>
-              </div>
-              <div class="isav-goal-actions">
-                ${isOwn?`<button class="btn btn-xs btn-p" onclick="openAddSavEntry('${scope}','${cat.id}')">+ Add</button>
-                <button class="btn btn-xs btn-d" onclick="deleteSavCat('${scope}','${cat.id}')">🗑️</button>`:''}
-              </div>
-            </div>
-            ${sorted.length===0
-              ?'<div style="font-size:12px;color:var(--txt3);text-align:center;padding:6px">No entries yet</div>'
-              :`<div class="txn-list">${sorted.slice(0,5).map(en=>`
-                <div class="txn-item">
-                  <div class="txn-icon ${en.type==='add'?'inc':'exp'}">${en.type==='add'?'💚':'❤️'}</div>
-                  <div class="txn-info"><div class="txn-desc">${esc(en.note||'Savings entry')}</div><div class="txn-meta">${fmtD(en.date)}</div></div>
-                  <div class="txn-amt ${en.type==='add'?'inc':'exp'}">${en.type==='add'?'+':'-'}${P(en.amt)}</div>
-                  ${isOwn?`<button class="txn-del" onclick="deleteSavEntry2('${scope}','${cat.id}','${en.id}')" title="Delete">🗑️</button>`:''}
-                </div>`).join('')}
-              ${sorted.length>5?`<div style="text-align:center;padding:4px;font-size:11px;color:var(--txt3)">+${sorted.length-5} more</div>`:''}</div>`
-            }
-          </div>`
-        }).join('')
-    }`
-}
-
-// ═══════════════════════════════════════════════════
-//  FINANCIAL ACCOUNTS — per-user, no time limit
-// ═══════════════════════════════════════════════════
-let _acctTxnType = 'income'
-function setAcctTxnType(t){
-  _acctTxnType=t
-  document.getElementById('acct-txn-income').className=t==='income'?'btn btn-p':'btn btn-g'
-  document.getElementById('acct-txn-expense').className=t==='expense'?'btn btn-p':'btn btn-g'
-}
-
-function toggleAcctCustomType(){
-  const sel=document.getElementById('acct-type')
-  const isOther=sel?.value==='💼 Others'
-  const wrap=document.getElementById('acct-custom-wrap')
-  if(wrap)wrap.style.display=isOther?'block':'none'
-}
-function getAcctType(){
-  const sel=document.getElementById('acct-type')
-  if(sel?.value==='💼 Others'){
-    const emoji=document.getElementById('acct-custom-emoji')?.value.trim()||'💼'
-    const name=document.getElementById('acct-custom-name')?.value.trim()||'Custom'
-    return `${emoji} ${name}`
-  }
-  return sel?.value||'💵 Cash'
-}
-function openAddAccount(){
-  document.getElementById('acct-eid').value=''
-  document.getElementById('acct-name').value=''
-  document.getElementById('acct-balance').value='0'
-  document.getElementById('acct-type').value='💵 Cash'
-  const cwrap=document.getElementById('acct-custom-wrap');if(cwrap)cwrap.style.display='none'
-  const errEl=document.getElementById('acct-err');if(errEl)errEl.style.display='none'
-  const sb=document.getElementById('acct-save-btn');if(sb)sb.textContent='Create'
-  document.querySelector('#m-addAccount .mtitle').textContent='🏧 New Account'
-  document.getElementById('m-addAccount').style.display='flex'
-}
-
-function openEditAccount(aid){
-  const a=S.accounts.find(x=>x.id===aid);if(!a)return
-  document.getElementById('acct-eid').value=aid
-  document.getElementById('acct-name').value=a.name
-  document.getElementById('acct-balance').value=a.openingBalance||0
-  // Handle custom type in select
-  const typeEl=document.getElementById('acct-type')
-  const stdTypes=['💵 Cash','📱 GCash','🏦 Bank','💳 E-Wallet','🚨 Emergency Fund','🎯 Savings','🐷 Piggy Bank','₿ Crypto Wallet','✈️ Travel Money','💼 Others']
-  if(stdTypes.includes(a.type)){
-    typeEl.value=a.type
-    const cwrap=document.getElementById('acct-custom-wrap');if(cwrap)cwrap.style.display='none'
-  } else {
-    typeEl.value='💼 Others'
-    // Parse emoji and name from stored type
-    const parts=a.type.split(' ')
-    const emojiEl=document.getElementById('acct-custom-emoji')
-    const nameEl=document.getElementById('acct-custom-name')
-    if(emojiEl)emojiEl.value=parts[0]||'💼'
-    if(nameEl)nameEl.value=parts.slice(1).join(' ')||''
-    const cwrap=document.getElementById('acct-custom-wrap');if(cwrap)cwrap.style.display='block'
-  }
-  const sb=document.getElementById('acct-save-btn');if(sb)sb.textContent='Save Changes'
-  document.querySelector('#m-addAccount .mtitle').textContent='✏️ Edit Account'
-  document.getElementById('m-addAccount').style.display='flex'
-}
-
-async function saveAccount(e){
-  CP(e)
-  const eid=document.getElementById('acct-eid')?.value
-  const name=document.getElementById('acct-name').value.trim()
-  const type=getAcctType()
-  const openingBal=parseFloat(document.getElementById('acct-balance').value)||0
-  if(!name){showErr('acct-err','Account name is required');return}
-  if(eid){
-    // Edit existing
-    const a=S.accounts.find(x=>x.id===eid);if(!a){showErr('acct-err','Not found');return}
-    a.name=name;a.type=type;a.openingBalance=openingBal
-    if(SB_READY&&AU_SB_ID)await _sb.from('financial_accounts').update({name,account_type:type,opening_balance:openingBal}).eq('id',eid)
-    cm('m-addAccount');toast(`"${name}" updated! ✏️`);renderAccounts();return
-  }
-  const acct={id:uid(),uid:'u1',name,type,openingBalance:openingBal,transactions:[]}
-  if(SB_READY&&AU_SB_ID){
-    const {data,error}=await _sb.from('financial_accounts').insert({user_id:AU_SB_ID,name,account_type:type,opening_balance:openingBal}).select().single()
-    if(error){showErr('acct-err','Failed to save. Run the Accounts SQL patch.');return}
-    if(data)acct.id=data.id
-  }
-  S.accounts.push(acct)
-  cm('m-addAccount');toast(`"${name}" account created! 🏧`);renderAccounts()
-}
-
-async function deleteAccount(aid){
-  if(!confirm('Delete this account and all its transactions?'))return
-  if(SB_READY&&AU_SB_ID)await _sb.from('financial_accounts').delete().eq('id',aid)
-  S.accounts=S.accounts.filter(a=>a.id!==aid)
-  toast('Account deleted 🗑️');renderAccounts()
-}
-
-function openAddAcctTxn(aid,type){
-  document.getElementById('acct-txn-aid').value=aid
-  document.getElementById('acct-txn-desc').value=''
-  document.getElementById('acct-txn-amt').value=''
-  document.getElementById('acct-txn-cat').value=''
-  document.getElementById('acct-txn-date').value=new Date().toISOString().split('T')[0]
-  const errEl=document.getElementById('acct-txn-err');if(errEl)errEl.style.display='none'
-  setAcctTxnType(type||'income')
-  document.getElementById('m-addAcctTxn').style.display='flex'
-}
-
-async function saveAcctTxn(e){
-  CP(e)
-  const aid=document.getElementById('acct-txn-aid').value
-  const desc=document.getElementById('acct-txn-desc').value.trim()
-  const amt=parseFloat(document.getElementById('acct-txn-amt').value)
-  const date=document.getElementById('acct-txn-date').value
-  const cat=document.getElementById('acct-txn-cat').value.trim()
-  if(!desc||!amt||amt<=0||!date){showErr('acct-txn-err','Fill all required fields');return}
-  const acct=S.accounts.find(a=>a.id===aid);if(!acct){showErr('acct-txn-err','Account not found');return}
-  const txn={id:uid(),aid,desc,amt,type:_acctTxnType,date,cat}
-  if(SB_READY&&AU_SB_ID){
-    const {data,error}=await _sb.from('account_transactions').insert({
-      account_id:aid,user_id:AU_SB_ID,description:desc,amount:amt,
-      type:_acctTxnType,transaction_date:date,category:cat||null
-    }).select().single()
-    if(error){showErr('acct-txn-err','Failed to save');return}
-    if(data)txn.id=data.id
-  }
-  if(!acct.transactions)acct.transactions=[]
-  acct.transactions.unshift(txn)
-  cm('m-addAcctTxn');toast(`Transaction saved! ${_acctTxnType==='income'?'💚':'❤️'}`);renderAccounts()
-}
-
-async function deleteAcctTxn(aid,tid){
-  if(!confirm('Delete this transaction?'))return
-  const acct=S.accounts.find(a=>a.id===aid);if(!acct)return
-  if(SB_READY&&AU_SB_ID)await _sb.from('account_transactions').delete().eq('id',tid)
-  acct.transactions=(acct.transactions||[]).filter(t=>t.id!==tid)
-  toast('Transaction deleted 🗑️');renderAccounts()
-}
-
-function renderAccounts(){
-  const el=document.getElementById('myaccounts-content');if(!el)return
-  const titleEl=document.getElementById('myaccounts-title')
-  if(titleEl)titleEl.textContent=`${USERS[AU].name}'s Accounts 🏧`
-  const accounts=S.accounts||[]
-  const grandTotal=accounts.reduce((s,a)=>{
-    const txns=a.transactions||[]
-    const inc=txns.filter(t=>t.type==='income').reduce((x,t)=>x+t.amt,0)
-    const exp=txns.filter(t=>t.type==='expense').reduce((x,t)=>x+t.amt,0)
-    return s+(a.openingBalance||0)+inc-exp
-  },0)
-
-  el.innerHTML=`
-    <div class="wallet-hero" style="background:linear-gradient(135deg,var(--pink),var(--purple))">
-      <div class="wallet-label">Total Across All Accounts</div>
-      <div class="wallet-bal">${P(grandTotal)}</div>
-      <div class="wallet-sub"><span>📂 ${accounts.length} account${accounts.length!==1?'s':''}</span></div>
-    </div>
-    ${accounts.length===0
-      ?`<div class="card"><div class="empty"><div class="empty-ico">🏧</div><div class="empty-t">No accounts yet</div><p>Create your first account to start tracking!</p></div></div>`
-      :accounts.map(a=>{
-          const txns=a.transactions||[]
-          const inc=txns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amt,0)
-          const exp=txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amt,0)
-          const bal=(a.openingBalance||0)+inc-exp
-          const sorted=[...txns].sort((x,y)=>y.date.localeCompare(x.date))
-          return `<div class="card" style="margin-bottom:12px;padding:14px 16px">
-            <div class="chd" style="margin-bottom:12px">
-              <div>
-                <div style="font-size:16px;font-weight:700">${a.type} ${esc(a.name)}</div>
-                <div style="font-size:11px;color:var(--txt3);margin-top:2px">Balance: <strong style="color:${bal>=0?'#34c759':'#ff3b30'};font-size:14px">${P(bal)}</strong> &nbsp;·&nbsp; 💚 ${P((a.openingBalance||0)+inc)} in &nbsp;·&nbsp; ❤️ ${P(exp)} out</div>
-              </div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-                <button class="btn btn-p btn-xs" onclick="openAddAcctTxn('${a.id}','income')" style="background:linear-gradient(135deg,var(--teal),#27ae60);border:none">💚 Income</button>
-                <button class="btn btn-xs btn-d" onclick="openAddAcctTxn('${a.id}','expense')" style="background:rgba(231,76,60,.1);color:var(--danger);border-color:rgba(231,76,60,.3)">❤️ Expense</button>
-                <button class="btn btn-xs btn-o" onclick="openEditAccount('${a.id}')">✏️ Edit</button>
-                <button class="btn btn-xs btn-d" onclick="deleteAccount('${a.id}')">🗑️</button>
-              </div>
-            </div>
-            ${sorted.length===0
-              ?'<div class="empty" style="padding:12px"><p>No transactions yet</p></div>'
-              :`<div class="txn-list">${sorted.slice(0,10).map(t=>`
-                <div class="txn-item">
-                  <div class="txn-icon ${t.type==='income'?'inc':'exp'}">${t.type==='income'?'💚':'❤️'}</div>
-                  <div class="txn-info"><div class="txn-desc">${esc(t.desc)}</div><div class="txn-meta">${fmtD(t.date)}${t.cat?' · '+esc(t.cat):''}</div></div>
-                  <div class="txn-amt ${t.type==='income'?'inc':'exp'}">${t.type==='income'?'+':'-'}${P(t.amt)}</div>
-                  <button class="txn-del" onclick="deleteAcctTxn('${a.id}','${t.id}')" title="Delete">🗑️</button>
-                </div>`).join('')}
-              ${sorted.length>10?`<div style="text-align:center;padding:8px;font-size:12px;color:var(--txt3)">+${sorted.length-10} more transactions</div>`:''}</div>`
-            }
-          </div>`
-        }).join('')
-    }`
-}
-
-async function sbLoadWalletSubs(){
-  if(!SB_READY||!AU_SB_ID) return []
-  const {data,error}=await _sb.from('financial_accounts')
-    .select('*, account_transactions(*)')
-    .eq('user_id',AU_SB_ID).eq('account_section','wallet')
-  if(error){console.warn('WalletSubs load error:',error);return []}
-  return data||[]
-}
-async function sbLoadSavingsCats(userId){
-  if(!SB_READY) return []
-  const {data,error}=await _sb.from('personal_savings_goals')
-    .select('*, personal_savings_contributions(*)')
-    .eq('user_id',userId).order('created_at',{ascending:true})
-  if(error){console.warn('SavingsCats load error:',error);return []}
-  return data||[]
-}
-async function sbLoadAccounts(){
-  if(!SB_READY||!AU_SB_ID) return []
-  const {data,error}=await _sb.from('financial_accounts')
-    .select('*, account_transactions(*)')
-    .eq('user_id',AU_SB_ID)
-  if(error){console.warn('Accounts load error:',error);return []}
-  return data||[]
-}
-
-// ── Visibility listener: if the browser throttled us while in the
-// background and loading didn't finish, complete it when the user
-// comes back to the tab. This is the main fix for "need to switch
-// tabs to make the site load" — a known browser throttling behaviour.
-document.addEventListener('visibilitychange',async()=>{
-  if(document.visibilityState!=='visible'||!AU_SB_ID)return
-  const loader=document.getElementById('_pairlyLoader')
-  const loaderVisible=loader&&loader.style.display==='flex'
-  if(loaderVisible){
-    // Was still loading in background — finish now that tab is active
-    await loadAllDataFromSB()
-    hideAuthOverlay()
-  }
-})
-
-window.addEventListener('DOMContentLoaded',()=>{
-  // Pre-load cached photos instantly before Supabase responds
-  try{
-    const p1=localStorage.getItem('pairly_photo_u1'); if(p1) USERS.u1.photo=p1
-    const p2=localStorage.getItem('pairly_photo_u2'); if(p2) USERS.u2.photo=p2
-  }catch(e){}
-  document.getElementById('staticDate').textContent=new Date().toLocaleDateString('en-PH',{weekday:'short',month:'long',day:'numeric',year:'numeric'})
-  document.getElementById('ttTrack').classList.toggle('on',!DARK)
-  document.querySelectorAll('input[type=date]').forEach(i=>{if(!i.value)i.value=tod()})
-  initPetals()
-  // Supabase CDN is in <head> — init immediately
-  _initSBClient()
-  if(SB_READY){
-    _startAuth()
-  } else {
-    // Small safety delay in case CDN loaded slightly late
-    setTimeout(()=>{
-      if(!SB_READY) _initSBClient()
-      _startAuth()
-    }, 500)
-  }
-})
-
-// ─── AUTH FLOW ──────────────────────────────────────────────
-function showAuthOverlay(){
-  // Hide the loading screen first
-  const loader=document.getElementById('_pairlyLoader')
-  if(loader) loader.style.display='none'
-  // Show the sign-in form
-  const o=document.getElementById('authOverlay'); if(!o)return
-  const card=o.querySelector('.auth-card')
-  if(card) card.style.display=''
-  o.style.display='flex'
-  const note=document.getElementById('authLocalNote')
-  if(note)note.style.display=SB_READY?'none':'block'
-}
-function hideAuthOverlay(){
-  const o=document.getElementById('authOverlay'); if(o)o.style.display='none'
-  const loader=document.getElementById('_pairlyLoader')
-  if(loader) loader.style.display='none'
-}
-// Show a full-screen loading overlay that is COMPLETELY SEPARATE
-// from #authOverlay — they can never appear at the same time.
-function _getLoader(){
-  let el=document.getElementById('_pairlyLoader')
-  if(!el){
-    el=document.createElement('div')
-    el.id='_pairlyLoader'
-    el.style.cssText='position:fixed;inset:0;z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;text-align:center;background:var(--bg1,#f9f0f5)'
-    el.innerHTML='<div style="font-size:3.5rem;animation:_spin 1s linear infinite;display:inline-block">🐾</div><div style="font-size:1.4rem;font-weight:600;color:var(--text-main,#1a0a2e)">Loading your data…</div><div style="font-size:0.85rem;color:#999;letter-spacing:0.08em">Just a moment ✨</div><style>@keyframes _spin{to{transform:rotate(360deg)}}</style>'
-    document.body.appendChild(el)
-  }
-  return el
-}
-function showAuthLoading(){
-  // Hide the sign-in form completely
-  const overlay=document.getElementById('authOverlay')
-  if(overlay) overlay.style.display='none'
-  // Show the standalone loading screen
-  const loader=_getLoader()
-  loader.style.display='flex'
-}
-function hideAuthOverlayLocalMode(){
-  hideAuthOverlay()
-  // Run as local-only mode
-  updateSBAv(); buildRepOptions(); renderOV()
-}
-function switchAuthTab(tab){
-  const li=document.getElementById('authFormLogin'),re=document.getElementById('authFormRegister')
-  const tl=document.getElementById('authTabLogin'),tr=document.getElementById('authTabRegister')
-  if(tab==='login'){
-    li.style.display='block';re.style.display='none'
-    tl.style.background='#d4537e';tl.style.color='#fff'
-    tr.style.background='transparent';tr.style.color='#7a4a5a'
-  } else {
-    li.style.display='none';re.style.display='block'
-    tr.style.background='#d4537e';tr.style.color='#fff'
-    tl.style.background='transparent';tl.style.color='#7a4a5a'
-  }
-}
-async function doSignIn(){
-  const email=document.getElementById('authEmail')?.value.trim()
-  const pass=document.getElementById('authPassword')?.value
-  const errEl=document.getElementById('authLoginErr')
-  const btn=document.getElementById('btnSignIn')
-  if(!email||!pass){if(errEl){errEl.textContent='Please fill in email and password';errEl.style.display='block'};return}
-  if(!SB_READY){hideAuthOverlayLocalMode();return}
-  btn.textContent='Signing in…';btn.disabled=true
-  const {data,error}=await _sb.auth.signInWithPassword({email,password:pass})
-  btn.textContent='Sign In →';btn.disabled=false
-  if(error){if(errEl){errEl.textContent=error.message;errEl.style.display='block'};return}
-  // Set AU_SB_ID IMMEDIATELY so visibilitychange can detect if the
-  // browser throttles us while loading (user switches to another tab)
-  AU_SB_ID=data.user.id
-  USERS.u1.name=data.user.user_metadata?.display_name||'You'
-  USERS.u1.email=data.user.email||''
-  showAuthLoading()
-  // Handle full load directly here instead of waiting for onAuthStateChange
-  await afterSignInSafe()
-  hideAuthOverlay()
-}
-async function doSignUp(){
-  const name=document.getElementById('authName')?.value.trim()
-  const email=document.getElementById('authRegEmail')?.value.trim()
-  const pass=document.getElementById('authRegPassword')?.value
-  const errEl=document.getElementById('authRegErr')
-  const btn=document.getElementById('btnSignUp')
-  if(!name||!email||!pass){if(errEl){errEl.textContent='Please fill all fields';errEl.style.display='block'};return}
-  if(pass.length<6){if(errEl){errEl.textContent='Password must be at least 6 characters';errEl.style.display='block'};return}
-  if(!SB_READY){hideAuthOverlayLocalMode();return}
-  btn.textContent='Creating account…';btn.disabled=true
-  const {data,error}=await _sb.auth.signUp({email,password:pass,options:{data:{display_name:name}}})
-  btn.textContent='Create Account 🐾';btn.disabled=false
-  if(error){if(errEl){errEl.textContent=error.message;errEl.style.display='block'};return}
-  // Create profile row
-  if(data.user){
-    await _sb.from('profiles').upsert({id:data.user.id,display_name:name,email,avatar_emoji:'🐱'},{onConflict:'id'})
-    // Seed default categories for new user
-    await sbSeedDefaultCategories(data.user.id)
-    toast('Account created! Check email to confirm, then sign in 🐾')
-    switchAuthTab('login')
-  }
-}
-
-
-// Runs afterSignIn() but forces hideAuthOverlay() after 10s max,
-// so a hanging Supabase call can never keep the app stuck forever.
-async function afterSignInSafe(){
-  try{
-    await Promise.race([
-      afterSignIn(),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('load_timeout')),8000))
-    ])
-  }catch(err){
-    if(err.message==='load_timeout'){
-      console.warn('Data load timed out — opening app with partial data')
-      toast('Some data took too long — refresh to retry ⚠️')
-    } else {
-      console.error('afterSignIn error:',err)
-    }
-  }
-}
-async function _startAuth(){
-  if(!SB_READY){ showAuthOverlay(); return }
-
-  _sb.auth.onAuthStateChange(async(event,session)=>{
-    if(session&&(event==='SIGNED_IN'||event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED')){
-      const isNewLogin=AU_SB_ID!==session.user.id
-      AU_SB_ID=session.user.id
-      USERS.u1.name=session.user.user_metadata?.display_name||'You'
-      USERS.u1.email=session.user.email||''
-      // Show loading state (keep overlay visible while data loads)
-      // This is the love-site pattern: entry screen stays up until data is ready
-      showAuthLoading()
-      if(isNewLogin) await afterSignInSafe()
-      // NOW hide the overlay — app opens with data already populated
-      hideAuthOverlay()
-    } else if(event==='SIGNED_OUT'||(event==='INITIAL_SESSION'&&!session)){
-      AU_SB_ID=null; AU_PARTNER_ID=null
-      resetLocalData()
-      showAuthOverlay()
-    }
-  })
-
-  // Safety net: explicitly check session after registering the listener.
-  // Handles the case where INITIAL_SESSION already fired before the listener
-  // was attached (CDN timing race on hard refresh).
-  try{
-    const {data:{session}}=await _sb.auth.getSession()
-    if(session&&!AU_SB_ID){
-      AU_SB_ID=session.user.id
-      USERS.u1.name=session.user.user_metadata?.display_name||'You'
-      USERS.u1.email=session.user.email||''
-      showAuthLoading()
-      await afterSignInSafe()
-      hideAuthOverlay()
-    } else if(!session&&!AU_SB_ID){
-      showAuthOverlay()
-    }
-  }catch(err){ console.warn('getSession err:',err); showAuthOverlay() }
-}
-
-async function afterSignIn(){
-  // NOTE: updateSBAv() is called AFTER profile loads so the photo is set first
-  const profile=await sbLoadProfile(AU_SB_ID)
-  if(profile){
-    USERS.u1.name    = profile.display_name  || 'You'
-    USERS.u1.avatar  = profile.avatar_emoji  || '🐱'
-    USERS.u1.inviteCode = profile.invite_code || 'Loading…'
-    // Load photo — Supabase first, localStorage fallback
-    if(profile.avatar_url){
-      USERS.u1.photo = profile.avatar_url
-      try{ localStorage.setItem('pairly_photo_u1', profile.avatar_url) }catch(e){}
-    } else {
-      try{ const lp=localStorage.getItem('pairly_photo_u1'); if(lp) USERS.u1.photo=lp }catch(e){}
-    }
-    AU_PARTNER_ID = profile.partner_id || null
-    if(AU_PARTNER_ID){
-      const pp=await sbLoadProfile(AU_PARTNER_ID)
-      if(pp){
-        USERS.u2.name   = pp.display_name  || 'Partner'
-        USERS.u2.avatar = pp.avatar_emoji  || '🐈'
-        USERS.u2.id     = AU_PARTNER_ID
-        USERS.u2.inviteCode = pp.invite_code || ''
-        if(pp.avatar_url){
-          USERS.u2.photo = pp.avatar_url
-          try{ localStorage.setItem('pairly_photo_u2', pp.avatar_url) }catch(e){}
-        } else {
-          try{ const lp=localStorage.getItem('pairly_photo_u2'); if(lp) USERS.u2.photo=lp }catch(e){}
-        }
-      }
-    }
-  }
-  updateSBAv()
-  await loadAllDataFromSB()
-  await loadDateBudgetFromSB()
-  updateSBAv()
-}
-
-function resetLocalData(){
-  S.budgets={u1:[],u2:[]}; S.expenses={u1:[],u2:[]}; S.insts={u1:[],u2:[]}
-  S.instPays=[]; S.goals=[]; S.dateBudget={cats:[],expenses:[],funds:[]}; S.todos=[]; S.wishlist={u1:[],u2:[]}; S.schedule={u1:[],u2:[]}; S.accounts=[]; S.walletSubs=[]; S.savingsCats={u1:[],u2:[]}
-}
-
-// Wraps a Supabase call so it always resolves (never rejects):
-// returns the data, or [] if it errors or takes longer than 5 seconds.
-// 5 seconds is generous for a single query; the parallel Promise.all
-// means total load time ≈ slowest single call, not the sum.
-function sbCall(promise){
-  return Promise.race([
-    promise.catch(()=>[]),
-    new Promise(r=>setTimeout(()=>r([]),5000))
-  ])
-}
-
-async function loadAllDataFromSB(){
-  if(!SB_READY||!AU_SB_ID)return
-  try{
-    // All fetches run in parallel — total time = slowest single call
-    const [
-      budgets, expenses, insts, goals, todos, wl, sched, userCats,
-      pb, pe, pi, pt, pw, ps,
-      walletTxns, acctRaw, walletSubsRaw, savingsCatsRaw, partnerSavingsCatsRaw, partnerWalletTxns
-    ] = await Promise.all([
-      sbCall(sbLoadBudgets(AU_SB_ID)),
-      sbCall(sbLoadExpenses(AU_SB_ID)),
-      sbCall(sbLoadInstallments(AU_SB_ID)),
-      sbCall(sbLoadGoals(AU_SB_ID)),
-      sbCall(sbLoadTodos(AU_SB_ID)),
-      sbCall(sbLoadWishlist(AU_SB_ID)),
-      sbCall(sbLoadSchedule(AU_SB_ID)),
-      sbCall(sbLoadCategories(AU_SB_ID)),
-      AU_PARTNER_ID ? sbCall(sbLoadBudgets(AU_PARTNER_ID))      : Promise.resolve([]),
-      AU_PARTNER_ID ? sbCall(sbLoadExpenses(AU_PARTNER_ID))     : Promise.resolve([]),
-      AU_PARTNER_ID ? sbCall(sbLoadInstallments(AU_PARTNER_ID)) : Promise.resolve([]),
-      AU_PARTNER_ID ? sbCall(sbLoadTodos(AU_PARTNER_ID))        : Promise.resolve([]),
-      AU_PARTNER_ID ? sbCall(sbLoadWishlist(AU_PARTNER_ID))     : Promise.resolve([]),
-      AU_PARTNER_ID ? sbCall(sbLoadSchedule(AU_PARTNER_ID))     : Promise.resolve([]),
-      sbCall(sbLoadWalletTxns(AU_SB_ID)),
-      sbCall(sbLoadAccounts()),
-      sbCall(sbLoadWalletSubs()),
-      sbCall(sbLoadSavingsCats(AU_SB_ID)),
-      AU_PARTNER_ID ? sbCall(sbLoadSavingsCats(AU_PARTNER_ID)) : Promise.resolve([]),
-      AU_PARTNER_ID ? sbCall(sbLoadWalletTxns(AU_PARTNER_ID)) : Promise.resolve([]),
-    ])
-    // Map results
-    S.budgets.u1=(budgets||[]).map(b=>({id:b.id,uid:'u1',title:b.title,type:b.budget_type||'📋 General',amt:parseFloat(b.amount)||0,spent:parseFloat(b.total_spent)||0,start:b.start_date,days:b.duration_days||null,end:b.end_date||null,status:b.status,xfer:parseFloat(b.transferred)||0,notes:b.notes||''}))
-    S.budgets.u2=(pb||[]).map(b=>({id:b.id,uid:'u2',title:b.title,type:b.budget_type||'📋 General',amt:parseFloat(b.amount)||0,spent:parseFloat(b.total_spent)||0,start:b.start_date,days:b.duration_days||null,end:b.end_date||null,status:b.status,xfer:parseFloat(b.transferred)||0,notes:b.notes||''}))
-    S.expenses.u1=(expenses||[]).map(e=>({id:e.id,uid:'u1',bid:e.budget_id,desc:e.description,amt:parseFloat(e.amount)||0,date:e.expense_date,catId:e.category_id||'cat8',pm:e.payment_method||'cash',custCat:e.custom_category||''}))
-    S.expenses.u2=(pe||[]).map(e=>({id:e.id,uid:'u2',bid:e.budget_id,desc:e.description,amt:parseFloat(e.amount)||0,date:e.expense_date,catId:e.category_id||'cat8',pm:e.payment_method||'cash',custCat:e.custom_category||''}))
-    S.insts.u1=(insts||[]).map(i=>({id:i.id,uid:'u1',bid:i.budget_id||null,name:i.item_name,total:parseFloat(i.total_cost)||0,down:parseFloat(i.down_payment)||0,payAmt:parseFloat(i.payment_amount)||0,freq:i.frequency||'monthly',numPay:i.total_payments||1,paid:i.payments_made||0,nextDue:i.next_due_date,auto:i.auto_add_expense,status:i.status||'active',pm:i.payment_method||'cash'}))
-    S.insts.u2=(pi||[]).map(i=>({id:i.id,uid:'u2',bid:i.budget_id||null,name:i.item_name,total:parseFloat(i.total_cost)||0,down:parseFloat(i.down_payment)||0,payAmt:parseFloat(i.payment_amount)||0,freq:i.frequency||'monthly',numPay:i.total_payments||1,paid:i.payments_made||0,nextDue:i.next_due_date,auto:i.auto_add_expense,status:i.status||'active',pm:i.payment_method||'cash'}))
-    S.goals=(goals||[]).map(g=>({id:g.id,title:g.title,icon:g.icon||'🎯',target:parseFloat(g.target_amount)||0,color:g.color||'#d4537e',contributions:(g.savings_contributions||[]).map(c=>({id:c.id,uid:c.user_id===AU_SB_ID?'u1':'u2',amt:parseFloat(c.amount)||0,source:c.source||'manual',note:c.note||'',date:c.contribution_date}))}))
-    S.todos=[...(todos||[]).map(t=>({id:t.id,uid:'u1',title:t.title,cat:t.category||'personal',custCat:t.custom_cat||'',pri:t.priority||'mid',due:t.due_date||'',notes:t.notes||'',done:t.is_done||false})),...(pt||[]).map(t=>({id:t.id,uid:'u2',title:t.title,cat:t.category||'personal',custCat:t.custom_cat||'',pri:t.priority||'mid',due:t.due_date||'',notes:t.notes||'',done:t.is_done||false}))]
-    S.wishlist.u1=(wl||[]).map(w=>({id:w.id,uid:'u1',name:w.item_name,price:parseFloat(w.target_price)||0,notes:w.notes||'',status:w.status||'planned',url:w.url||''}))
-    S.wishlist.u2=(pw||[]).map(w=>({id:w.id,uid:'u2',name:w.item_name,price:parseFloat(w.target_price)||0,notes:w.notes||'',status:w.status||'planned',url:w.url||''}))
-    S.schedule.u1=(sched||[]).map(s=>({id:s.id,uid:'u1',label:s.label,day:s.day_of_week,start:s.start_time?.slice(0,5)||'',end:s.end_time?.slice(0,5)||'',room:s.location||'',type:s.sched_type||'onsite',custType:s.custom_type||''}))
-    S.schedule.u2=(ps||[]).map(s=>({id:s.id,uid:'u2',label:s.label,day:s.day_of_week,start:s.start_time?.slice(0,5)||'',end:s.end_time?.slice(0,5)||'',room:s.location||'',type:s.sched_type||'onsite',custType:s.custom_type||''}))
-    const userCats2=userCats||[]
-    // Wallet transactions
-    S.wallet.u1=(walletTxns||[]).map(t=>({id:t.id,uid:'u1',desc:t.description,amt:parseFloat(t.amount)||0,type:t.type,date:t.transaction_date,cat:t.category||''}))
-    S.wallet.u2=(partnerWalletTxns||[]).map(t=>({id:t.id,uid:'u2',desc:t.description,amt:parseFloat(t.amount)||0,type:t.type,date:t.transaction_date,cat:t.category||''}))
-    // Individual savings goals
-    // Financial accounts (section='account')
-    const allAccts=(acctRaw||[])
-    S.accounts=allAccts.filter(a=>a.account_section!=='wallet').map(a=>({
-      id:a.id,uid:'u1',name:a.name,type:a.account_type||'💵 Cash',
-      openingBalance:parseFloat(a.opening_balance)||0,
-      transactions:(a.account_transactions||[]).map(t=>({
-        id:t.id,aid:a.id,desc:t.description,amt:parseFloat(t.amount)||0,
-        type:t.type,date:t.transaction_date,cat:t.category||''
-      }))
-    }))
-    // Wallet sub-categories (section='wallet')
-    S.walletSubs=allAccts.filter(a=>a.account_section==='wallet').map(a=>({
-      id:a.id,name:a.name,type:a.account_type||'💵 Cash',
-      openingBalance:parseFloat(a.opening_balance)||0,
-      transactions:(a.account_transactions||[]).map(t=>({
-        id:t.id,wid:a.id,desc:t.description,amt:parseFloat(t.amount)||0,
-        type:t.type,date:t.transaction_date,cat:t.category||''
-      }))
-    }))
-    // Savings sub-categories
-    function mapSavCat(g,uid2){
-      const entries=(g.personal_savings_contributions||[]).map(c=>({
-        id:c.id,catId:g.id,type:parseFloat(c.amount)>=0?'add':'withdraw',
-        amt:Math.abs(parseFloat(c.amount)||0),note:c.note||'',date:c.contribution_date
-      }))
-      return {id:g.id,uid:uid2,name:g.title,icon:g.icon||'🎯',color:g.color||'#d4537e',entries}
-    }
-    S.savingsCats.u1=(savingsCatsRaw||[]).map(g=>mapSavCat(g,'u1'))
-    S.savingsCats.u2=(partnerSavingsCatsRaw||[]).map(g=>mapSavCat(g,'u2'))
-    // (accounts and wallet subs already mapped above from allAccts)
-    if(userCats2.length>0){
-      const sbCatMap={}; userCats2.forEach(uc=>sbCatMap[uc.name]=uc.id)
-      S.cats=S.cats.map(lc=>{const sbId=sbCatMap[lc.name];return sbId?{...lc,id:sbId}:lc})
-      userCats2.forEach(uc=>{if(!S.cats.find(sc=>sc.id===uc.id))S.cats.push({id:uc.id,name:uc.name,icon:uc.icon||'🏷️',color:uc.color||'#95a5a6'})})
-    }
-    toast('Data loaded! 🐾')
-  }catch(err){console.error('Load error:',err);toast('Some data failed to load — check console','⚠️')}
-  // Re-render the active page + overview regardless of success/fail or timing
-  try{
-    buildRepOptions()
-    renderOV()
-    renderPage(CUR)
-  }catch(renderErr){ console.warn('Post-load render error:',renderErr) }
-}
-
-
-// ═══════════════════════════════════════════════════════════
-//  🔌 SUPABASE CONFIGURATION — REPLACE THESE TWO VALUES
-// ═══════════════════════════════════════════════════════════
-const SUPABASE_URL  = 'https://zyjpztblmkjjqgovmgpx.supabase.co'
-const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5anB6dGJsbWtqanFnb3ZtZ3B4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMzQ0MzksImV4cCI6MjA5NTYxMDQzOX0.BYxsU_Dko_YT69Yi781RbKWE5kfsZfnRCqnne-iO5Vk'
-
-let _sb = null
-let SB_READY = false
-let AU_SB_ID = null          // Real Supabase user ID after login
-let AU_PARTNER_ID = null     // Partner's Supabase user ID
-
-function _initSBClient(){
-  try{
-    const sbLib = window.supabase || window.Supabase
-    if(sbLib && typeof sbLib.createClient === 'function' && SUPABASE_URL && SUPABASE_URL !== 'YOUR_SUPABASE_URL_HERE'){
-      _sb = sbLib.createClient(SUPABASE_URL, SUPABASE_KEY)
-      SB_READY = true
-      console.log('✅ Supabase connected to:', SUPABASE_URL)
-    } else if(!SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_URL_HERE'){
-      console.warn('⚠️ Supabase URL not set')
-    } else if(!sbLib){
-      console.error('❌ Supabase library not loaded. window.supabase =', window.supabase)
-    }
-  }catch(err){
-    console.error('❌ Supabase init error:',err)
-  }
-}
-
-// ── AUTH HELPERS ───────────────────────────────────────────
-async function sbSignUp(email, password, name) {
-  if (!SB_READY) { toast('⚠️ Supabase not configured yet'); return null }
-  const { data, error } = await _sb.auth.signUp({ email, password })
-  if (error) { toast('Sign up failed: ' + error.message, '❌'); return null }
-  // Create profile row
-  await _sb.from('profiles').insert({
-    id: data.user.id,
-    display_name: name || 'User',
-    email: email,
-  })
-  toast('Account created! Welcome to RK Paw Budget 🐾')
-  return data.user
-}
-
-async function sbSignIn(email, password) {
-  if (!SB_READY) { toast('⚠️ Supabase not configured yet'); return null }
-  const { data, error } = await _sb.auth.signInWithPassword({ email, password })
-  if (error) { toast('Sign in failed: ' + error.message, '❌'); return null }
-  toast('Welcome back! 🐾')
-  return data.user
-}
-
-async function sbSignOut() {
-  if (!SB_READY) return
-  await _sb.auth.signOut()
-}
-
-async function sbGetUser() {
-  if (!SB_READY) return null
-  const { data } = await _sb.auth.getUser()
-  return data?.user || null
-}
-
-// ── PROFILE HELPERS ────────────────────────────────────────
-async function sbLoadProfile(userId) {
-  if (!SB_READY) return null
-  const { data, error } = await _sb.from('profiles').select('*').eq('id', userId).single()
-  if (error) return null
-  return data
-}
-
-async function sbSaveProfile(userId, updates) {
-  if (!SB_READY) return
-  const { error } = await _sb.from('profiles').update(updates).eq('id', userId)
-  if (error) console.error('Profile save error:', error)
-}
-
-async function sbUploadAvatar(userId, file) {
-  if (!SB_READY) return null
-  const ext  = file.name.split('.').pop()
-  const path = `${userId}/avatar.${ext}`
-  const { error } = await _sb.storage.from('avatars').upload(path, file, { upsert: true })
-  if (error) { console.error('Avatar upload error:', error); return null }
-  const { data } = _sb.storage.from('avatars').getPublicUrl(path)
-  return data.publicUrl
-}
-
-// sbLinkPartner is now handled via the link_partner RPC (see linkPartner() above)
-// This stub is kept for backwards compatibility
-async function sbLinkPartner(myId, partnerCode) {
-  if (!SB_READY) return false
-  try{
-    const {data,error}=await _sb.rpc('link_partner',{my_id:myId,partner_code:partnerCode.toUpperCase()})
-    return !error && data!==false
-  }catch(err){ console.error('sbLinkPartner error:',err); return false }
-}
-
-// ── BUDGET HELPERS ─────────────────────────────────────────
-async function sbLoadBudgets(userId) {
-  if (!SB_READY) return []
-  const { data, error } = await _sb.from('budgets')
-    .select('*').eq('user_id', userId).order('start_date', { ascending: false })
-  if (error) return []
-  return data
-}
-
-async function sbCreateBudget(budget) {
-  if (!SB_READY) return null
-  const { data, error } = await _sb.from('budgets').insert(budget).select().single()
-  if (error) { console.error('Budget create error:', error); return null }
-  return data
-}
-
-async function sbUpdateBudget(id, updates) {
-  if (!SB_READY) return
-  const { error } = await _sb.from('budgets').update(updates).eq('id', id)
-  if (error) console.error('Budget update error:', error)
-}
-
-async function sbDeleteBudget(id) {
-  if (!SB_READY) return
-  const { error } = await _sb.from('budgets').delete().eq('id', id)
-  if (error) console.error('Budget delete error:', error)
-}
-
-// ── EXPENSE HELPERS ────────────────────────────────────────
-async function sbLoadExpenses(userId) {
-  if (!SB_READY) return []
-  const { data, error } = await _sb.from('expenses')
-    .select('*').eq('user_id', userId).order('expense_date', { ascending: false })
-  if (error) return []
-  return data
-}
-
-async function sbCreateExpense(expense) {
-  if (!SB_READY) return null
-  const { data, error } = await _sb.from('expenses').insert(expense).select().single()
-  if (error) { console.error('Expense create error:', error); return null }
-  return data
-}
-
-async function sbUpdateExpense(id, updates) {
-  if (!SB_READY) return
-  const { error } = await _sb.from('expenses').update(updates).eq('id', id)
-  if (error) console.error('Expense update error:', error)
-}
-
-async function sbDeleteExpense(id) {
-  if (!SB_READY) return
-  const { error } = await _sb.from('expenses').delete().eq('id', id)
-  if (error) console.error('Expense delete error:', error)
-}
-
-// ── INSTALLMENT HELPERS ────────────────────────────────────
-async function sbLoadInstallments(userId) {
-  if (!SB_READY) return []
-  const { data, error } = await _sb.from('installments')
-    .select('*').eq('user_id', userId).order('created_at', { ascending: false })
-  if (error) return []
-  return data
-}
-
-async function sbCreateInstallment(inst) {
-  if (!SB_READY) return null
-  const { data, error } = await _sb.from('installments').insert(inst).select().single()
-  if (error) { console.error('Installment create error:', error); return null }
-  return data
-}
-
-async function sbDeleteInstallment(id) {
-  if (!SB_READY) return
-  const { error } = await _sb.from('installments').delete().eq('id', id)
-  if (error) console.error('Installment delete error:', error)
-}
-
-async function sbRecordInstallmentPayment(payment) {
-  if (!SB_READY) return null
-  const { data, error } = await _sb.from('installment_payments').insert(payment).select().single()
-  if (error) { console.error('Payment record error:', error); return null }
-  return data
-}
-
-// ── SAVINGS GOAL HELPERS ───────────────────────────────────
-async function sbLoadGoals(userId) {
-  if (!SB_READY) return []
-  // Load goals owned by this user OR partner (shared savings)
-  const ids=[userId]
-  if(AU_PARTNER_ID&&AU_PARTNER_ID!==userId)ids.push(AU_PARTNER_ID)
-  const { data, error } = await _sb.from('savings_goals')
-    .select('*, savings_contributions(*)')
-    .in('owner_id', ids)
-  if (error) return []
-  return data||[]
-}
-
-async function sbCreateGoal(goal) {
-  if (!SB_READY) return null
-  const { data, error } = await _sb.from('savings_goals').insert(goal).select().single()
-  if (error) { console.error('Goal create error:', error); return null }
-  return data
-}
-
-async function sbDeleteGoal(id) {
-  if (!SB_READY) return
-  const { error } = await _sb.from('savings_goals').delete().eq('id', id)
-  if (error) console.error('Goal delete error:', error)
-}
-
-async function sbAddContribution(contribution) {
-  if (!SB_READY) return null
-  const { data, error } = await _sb.from('savings_contributions').insert(contribution).select().single()
-  if (error) { console.error('Contribution error:', error); return null }
-  return data
-}
-
-// ── CATEGORY HELPERS ───────────────────────────────────────
-async function sbLoadCategories(userId) {
-  if (!SB_READY) return []
-  const { data, error } = await _sb.from('categories').select('*').eq('user_id', userId)
-  if (error) return []
-  return data
-}
-
-async function sbSeedDefaultCategories(userId) {
-  // Call once on first sign-up to create default categories for the user
-  if (!SB_READY) return
-  const defaults = [
-    { user_id: userId, name: 'Food & Dining',  icon: '🍜', color: '#d4537e', is_default: true },
-    { user_id: userId, name: 'Groceries',      icon: '🛒', color: '#e07e3a', is_default: true },
-    { user_id: userId, name: 'Transport',      icon: '🚗', color: '#3aaa7e', is_default: true },
-    { user_id: userId, name: 'Bills',          icon: '📱', color: '#6b7bdb', is_default: true },
-    { user_id: userId, name: 'Entertainment',  icon: '🎮', color: '#9b59b6', is_default: true },
-    { user_id: userId, name: 'Health',         icon: '💊', color: '#e74c3c', is_default: true },
-    { user_id: userId, name: 'Shopping',       icon: '🛍️', color: '#f39c12', is_default: true },
-    { user_id: userId, name: 'Other',          icon: '✨', color: '#95a5a6', is_default: true },
-  ]
-  await _sb.from('categories').insert(defaults)
-}
-
-// ── TODO HELPERS ───────────────────────────────────────────
-async function sbLoadTodos(userId) {
-  if (!SB_READY) return []
-  const { data, error } = await _sb.from('todos')
-    .select('*').eq('user_id', userId).order('due_date', { ascending: true })
-  if (error) return []
-  return data
-}
-
-async function sbCreateTodo(todo) {
-  if (!SB_READY) return null
-  const { data, error } = await _sb.from('todos').insert(todo).select().single()
-  if (error) { console.error('Todo create error:', error); return null }
-  return data
-}
-
-async function sbUpdateTodo(id, updates) {
-  if (!SB_READY) return
-  await _sb.from('todos').update(updates).eq('id', id)
-}
-
-async function sbDeleteTodo(id) {
-  if (!SB_READY) return
-  await _sb.from('todos').delete().eq('id', id)
-}
-
-// ── SCHEDULE HELPERS ───────────────────────────────────────
-async function sbLoadSchedule(userId) {
-  if (!SB_READY) return []
-  const { data, error } = await _sb.from('schedules')
-    .select('*').eq('user_id', userId).order('start_time')
-  if (error) return []
-  return data
-}
-
-async function sbCreateScheduleEntry(entry) {
-  if (!SB_READY) return null
-  const { data, error } = await _sb.from('schedules').insert(entry).select().single()
-  if (error) { console.error('Schedule create error:', error); return null }
-  return data
-}
-
-async function sbDeleteScheduleEntry(id) {
-  if (!SB_READY) return
-  await _sb.from('schedules').delete().eq('id', id)
-}
-
-// ── WISHLIST HELPERS ───────────────────────────────────────
-async function sbLoadWishlist(userId) {
-  if (!SB_READY) return []
-  const { data, error } = await _sb.from('wishlist')
-    .select('*').eq('user_id', userId).order('created_at', { ascending: false })
-  if (error) return []
-  return data
-}
-
-async function sbCreateWishItem(item) {
-  if (!SB_READY) return null
-  const { data, error } = await _sb.from('wishlist').insert(item).select().single()
-  if (error) { console.error('Wishlist create error:', error); return null }
-  return data
-}
-
-async function sbUpdateWishItem(id, updates) {
-  if (!SB_READY) return
-  await _sb.from('wishlist').update(updates).eq('id', id)
-}
-
-async function sbDeleteWishItem(id) {
-  if (!SB_READY) return
-  await _sb.from('wishlist').delete().eq('id', id)
-}
-
-// ── REALTIME SUBSCRIPTION ──────────────────────────────────
-// Uncomment and call subscribeRealtime() after user signs in
-// to automatically refresh UI when partner makes changes.
-/*
-function subscribeRealtime(onUpdate) {
-  if (!SB_READY) return
-  _sb.channel('pairly-live')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses'       }, onUpdate)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'budgets'        }, onUpdate)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'savings_contributions' }, onUpdate)
-    .subscribe()
-}
-*/
-
-// ── RECEIPT UPLOAD ─────────────────────────────────────────
-async function sbUploadReceipt(userId, file) {
-  if (!SB_READY) return null
-  const ext  = file.name.split('.').pop()
-  const path = `${userId}/${Date.now()}.${ext}`
-  const { error } = await _sb.storage.from('receipts').upload(path, file)
-  if (error) { console.error('Receipt upload error:', error); return null }
-  const { data } = _sb.storage.from('receipts').getPublicUrl(path)
-  return data.publicUrl
-}
-
-function initPetals(){
-  const canvas=document.getElementById('petalsCanvas')
-  if(!canvas)return
-  const isDark=document.documentElement.getAttribute('data-theme')==='dark'
-  // Petal shapes — mix of flower petals, sakura, hearts, sparkles
-  const shapes=['🌸','🌺','🍀','💮','🌷','✨','🌼','💕','🐾','⭐']
-  const count=window.innerWidth<600?8:16
-  canvas.innerHTML=''
-  for(let i=0;i<count;i++){
-    const el=document.createElement('div')
-    el.className='petal'
-    el.textContent=shapes[i%shapes.length]
-    // Randomise position, size, speed, delay
-    const left  = Math.random()*100
-    const delay = Math.random()*18
-    const dur   = 10+Math.random()*18
-    const size  = 11+Math.random()*10
-    el.style.cssText=`left:${left}%;font-size:${size}px;animation-delay:${delay}s;animation-duration:${dur}s;opacity:0`
-    canvas.appendChild(el)
-  }
-}
-// Re-init petals when theme toggles (already called via toggleTheme → renderPage)
-const _origToggleTheme=toggleTheme
-// Note: toggleTheme is already defined above; petals reinit on re-render handled inline
 </script>
-
-<!-- ═══════════ AUTH OVERLAY ═══════════ -->
-<div id="authOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#fdf0f4 0%,#f4d5e2 50%,#fae6ed 100%);align-items:center;justify-content:center;padding:16px">
-  <div style="width:100%;max-width:400px">
-    <!-- Logo + title -->
-    <div style="text-align:center;margin-bottom:28px">
-      <div style="font-size:48px;margin-bottom:8px">🐾</div>
-      <div style="font-family:Quicksand,sans-serif;font-size:28px;font-weight:700;color:#d4537e">RK Paw Budget</div>
-      <div style="font-size:13px;color:#7a4a5a;margin-top:4px">Track Together, Save Together</div>
-    </div>
-    <!-- Auth card -->
-    <div style="background:#fff;border-radius:20px;padding:28px;box-shadow:0 8px 40px rgba(212,83,126,.18)">
-      <!-- Tabs -->
-      <div style="display:flex;background:#fae6ed;border-radius:10px;padding:4px;margin-bottom:22px">
-        <button id="authTabLogin" onclick="switchAuthTab('login')" style="flex:1;padding:9px;border:none;border-radius:7px;background:#d4537e;color:#fff;font-family:Quicksand,sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all .2s">Sign In</button>
-        <button id="authTabRegister" onclick="switchAuthTab('register')" style="flex:1;padding:9px;border:none;border-radius:7px;background:transparent;color:#7a4a5a;font-family:Quicksand,sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all .2s">Create Account</button>
-      </div>
-      <!-- Login form -->
-      <div id="authFormLogin">
-        <div style="margin-bottom:14px">
-          <label style="display:block;font-size:11px;font-weight:700;color:#b08090;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">Email</label>
-          <input id="authEmail" type="email" placeholder="you@example.com" style="width:100%;padding:11px 14px;border:1.5px solid #e8c4d4;border-radius:10px;font-size:14px;outline:none;font-family:DM Sans,sans-serif;background:#fdf0f4;color:#2a1520;transition:border-color .15s" onfocus="this.style.borderColor='#d4537e'" onblur="this.style.borderColor='#e8c4d4'"/>
-        </div>
-        <div style="margin-bottom:18px">
-          <label style="display:block;font-size:11px;font-weight:700;color:#b08090;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">Password</label>
-          <input id="authPassword" type="password" placeholder="Your password" style="width:100%;padding:11px 14px;border:1.5px solid #e8c4d4;border-radius:10px;font-size:14px;outline:none;font-family:DM Sans,sans-serif;background:#fdf0f4;color:#2a1520;transition:border-color .15s" onfocus="this.style.borderColor='#d4537e'" onblur="this.style.borderColor='#e8c4d4'" onkeydown="if(event.key==='Enter')doSignIn()"/>
-        </div>
-        <div id="authLoginErr" style="display:none;font-size:12px;color:#e74c3c;margin-bottom:12px;padding:9px 12px;background:#fdf0ef;border-radius:8px;border:1px solid rgba(231,76,60,.2)"></div>
-        <button onclick="doSignIn()" id="btnSignIn" style="width:100%;padding:13px;background:linear-gradient(135deg,#d4537e,#9b59b6);color:#fff;border:none;border-radius:10px;font-family:Quicksand,sans-serif;font-weight:700;font-size:15px;cursor:pointer;transition:opacity .2s">Sign In →</button>
-        <div style="text-align:center;margin-top:14px;font-size:12px;color:#b08090">Don't have an account? <span onclick="switchAuthTab('register')" style="color:#d4537e;cursor:pointer;font-weight:600">Create one</span></div>
-      </div>
-      <!-- Register form -->
-      <div id="authFormRegister" style="display:none">
-        <div style="margin-bottom:12px">
-          <label style="display:block;font-size:11px;font-weight:700;color:#b08090;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">Your Name</label>
-          <input id="authName" type="text" placeholder="e.g. Ranz" style="width:100%;padding:11px 14px;border:1.5px solid #e8c4d4;border-radius:10px;font-size:14px;outline:none;font-family:DM Sans,sans-serif;background:#fdf0f4;color:#2a1520;transition:border-color .15s" onfocus="this.style.borderColor='#d4537e'" onblur="this.style.borderColor='#e8c4d4'"/>
-        </div>
-        <div style="margin-bottom:12px">
-          <label style="display:block;font-size:11px;font-weight:700;color:#b08090;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">Email</label>
-          <input id="authRegEmail" type="email" placeholder="you@example.com" style="width:100%;padding:11px 14px;border:1.5px solid #e8c4d4;border-radius:10px;font-size:14px;outline:none;font-family:DM Sans,sans-serif;background:#fdf0f4;color:#2a1520;transition:border-color .15s" onfocus="this.style.borderColor='#d4537e'" onblur="this.style.borderColor='#e8c4d4'"/>
-        </div>
-        <div style="margin-bottom:18px">
-          <label style="display:block;font-size:11px;font-weight:700;color:#b08090;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">Password (min 6 chars)</label>
-          <input id="authRegPassword" type="password" placeholder="Create a strong password" style="width:100%;padding:11px 14px;border:1.5px solid #e8c4d4;border-radius:10px;font-size:14px;outline:none;font-family:DM Sans,sans-serif;background:#fdf0f4;color:#2a1520;transition:border-color .15s" onfocus="this.style.borderColor='#d4537e'" onblur="this.style.borderColor='#e8c4d4'" onkeydown="if(event.key==='Enter')doSignUp()"/>
-        </div>
-        <div id="authRegErr" style="display:none;font-size:12px;color:#e74c3c;margin-bottom:12px;padding:9px 12px;background:#fdf0ef;border-radius:8px;border:1px solid rgba(231,76,60,.2)"></div>
-        <button onclick="doSignUp()" id="btnSignUp" style="width:100%;padding:13px;background:linear-gradient(135deg,#d4537e,#9b59b6);color:#fff;border:none;border-radius:10px;font-family:Quicksand,sans-serif;font-weight:700;font-size:15px;cursor:pointer;transition:opacity .2s">Create Account 🐾</button>
-        <div style="text-align:center;margin-top:14px;font-size:12px;color:#b08090">Already have an account? <span onclick="switchAuthTab('login')" style="color:#d4537e;cursor:pointer;font-weight:600">Sign in</span></div>
-      </div>
-      <!-- Local mode note -->
-      <div id="authLocalNote" style="margin-top:16px;padding:10px 12px;background:#fef5e0;border-radius:9px;border:1px solid rgba(224,160,32,.3);font-size:11px;color:#7a6020;display:none">
-        ⚠️ Supabase not configured — running in local mode. Data will be lost on refresh.
-        <a href="#" style="color:#d4537e;font-weight:700" onclick="hideAuthOverlayLocalMode()">Continue anyway →</a>
-      </div>
-    </div>
-  </div>
-</div>
-
 </body>
 </html>
