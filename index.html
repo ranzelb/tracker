@@ -1150,7 +1150,7 @@ tbody tr:hover td{background:var(--bg3)}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-p" style="background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" onclick="openDateFund(event)" id="db-add-fund-btn">💰 Add Funds</button>
       <button class="btn btn-p" id="db-add-cat-btn" onclick="openDateCatModal()">+ Category</button>
-      <button class="btn btn-p" style="background:linear-gradient(135deg,#9c27b0,#6a1b9a);border:none" onclick="openDatePeriod()">📅 Period</button>
+      <button class="btn btn-p" style="background:linear-gradient(135deg,#9c27b0,#6a1b9a);border:none" onclick="openDateDeadline()">⏱️ Deadline</button>
     </div>
   </div>
 
@@ -1497,36 +1497,40 @@ tbody tr:hover td{background:var(--bg3)}
 <!-- Add/Edit Savings -->
 <!-- ══════════ DATE BUDGET MODALS ══════════ -->
 
-<!-- Set Period modal -->
+<!-- Set Deadline modal (replaces old Period modal) -->
 <div class="overlay" id="m-datePeriod" style="display:none" onclick="obg(event,'m-datePeriod')">
-  <div class="modal" style="max-width:440px">
-    <div class="mhd"><div class="mtitle" id="dp-modal-title">📅 Set Budget Period</div><button class="mclose" onclick="cm('m-datePeriod')">✕</button></div>
+  <div class="modal" style="max-width:420px">
+    <div class="mhd"><div class="mtitle">⏱️ Set Budget Deadline</div><button class="mclose" onclick="cm('m-datePeriod')">✕</button></div>
     <div class="mbody">
-      <div class="fg"><label>Period Name</label>
-        <input type="text" id="dp-name" placeholder="e.g. June 2026, Summer Date Budget…"/>
+      <div class="fg"><label>Start Date</label><input type="date" id="dp-start"/></div>
+      <!-- Deadline type toggle -->
+      <div class="fg" style="margin-bottom:6px">
+        <label>Deadline Type</label>
+        <div class="pm-group" id="dp-type-group" style="margin-top:6px">
+          <div class="pm-btn sel" data-dtype="duration" onclick="selectDeadlineType('duration')">📆 Duration (days)</div>
+          <div class="pm-btn" data-dtype="date" onclick="selectDeadlineType('date')">📅 Specific Date</div>
+          <div class="pm-btn" data-dtype="none" onclick="selectDeadlineType('none')">∞ No Deadline</div>
+        </div>
       </div>
-      <div class="frow">
-        <div class="fg"><label>Start Date</label><input type="date" id="dp-start"/></div>
-        <div class="fg"><label>Duration (Days)</label><input type="number" id="dp-days" placeholder="e.g. 30" min="1" max="365"/></div>
+      <!-- Duration input -->
+      <div class="fg" id="dp-duration-wrap">
+        <label>Duration (days)</label>
+        <input type="number" id="dp-days" min="1" value="30" placeholder="e.g. 30"/>
       </div>
-      <div class="fg" style="margin-top:4px">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">
-          <input type="checkbox" id="dp-unlimited" onchange="toggleDPDays(this)" style="width:15px;height:15px;accent-color:var(--pink)"/>
-          <span>No Deadline (unlimited period)</span>
-        </label>
+      <!-- Specific date input -->
+      <div class="fg" id="dp-date-wrap" style="display:none">
+        <label>End Date (Deadline)</label>
+        <input type="date" id="dp-end"/>
       </div>
-      <div id="dp-end-info" style="font-size:12px;color:var(--txt3);margin-top:6px;padding:8px 12px;background:var(--bg3);border-radius:8px;display:none">
-        📅 End date: <strong id="dp-end-display">—</strong>
-      </div>
-      <div style="background:rgba(233,30,140,.08);border:1.5px solid rgba(233,30,140,.2);border-radius:10px;padding:12px;font-size:12px;color:var(--txt2);margin-top:10px">
-        💡 When the deadline is reached, click <strong>🔄 Reset for New Period</strong> to archive this budget and start fresh. Your history is always preserved.
+      <div style="background:rgba(233,30,140,.08);border:1.5px solid rgba(233,30,140,.2);border-radius:10px;padding:12px;font-size:12px;color:var(--txt2);margin-top:8px">
+        💡 When the deadline passes, the budget is automatically archived to History and a fresh period starts.
       </div>
       <div class="err" id="dp-err" style="display:none"></div>
     </div>
     <div class="mfoot">
       <button class="btn" onclick="cm('m-datePeriod')">Cancel</button>
-      <button class="btn btn-d" onclick="resetDatePeriod()" id="dp-reset-btn" style="display:none">🔄 Reset</button>
-      <button class="btn btn-p" style="background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" onclick="saveDatePeriod()">Save Period</button>
+      <button class="btn btn-d" onclick="archiveDateBudgetNow()" id="dp-archive-btn" style="display:none">📦 Archive Now</button>
+      <button class="btn btn-p" style="background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" onclick="saveDateDeadline()">Save Deadline</button>
     </div>
   </div>
 </div>
@@ -1755,14 +1759,6 @@ const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 const fmtD=d=>{try{return new Date(d+'T12:00:00').toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})}catch{return d}}
 const monthName=d=>{try{return new Date(d+'T12:00:00').toLocaleDateString('en-PH',{month:'long',year:'numeric'})}catch{return d}}
 const dleft=b=>{const endField=b.end||b.end_date||'';if(!endField)return 0;const e=new Date(endField+'T23:59:59'),n=new Date();const diff=Math.ceil((e-n)/(864e5));return isNaN(diff)?0:Math.max(0,diff)}
-
-// ─── FX ───────────────────────────────────────────────────
-const CATS_FX=['🐱','😺','😸','🐾','✨','🎀','💕','🌸','🐈','🌺']
-function CP(e){if(!e?.clientX)return;const el=document.createElement('div');el.className='catpop';el.textContent=CATS_FX[Math.floor(Math.random()*CATS_FX.length)];el.style.left=(e.clientX+(Math.random()*20-10))+'px';el.style.top=(e.clientY-14)+'px';document.body.appendChild(el);setTimeout(()=>el.remove(),750)}
-function toast(msg,icon='✅'){const el=document.createElement('div');el.className='toast';el.innerHTML=`<span>${icon}</span><span>${esc(msg)}</span>`;document.body.appendChild(el);setTimeout(()=>{el.style.transition='opacity .25s';el.style.opacity='0';setTimeout(()=>el.remove(),260)},2800)}
-function showErr(id,msg){const el=document.getElementById(id);if(el){el.textContent=msg;el.style.display='block'}}
-function cm(id){document.getElementById(id).style.display='none'}
-function obg(e,id){if(e.target.classList.contains('overlay'))cm(id)}
 
 let _CH={}
 let _trendView={} // per-budget trend chart type: 'bar'|'line'
@@ -3222,6 +3218,13 @@ const DB_DEFAULT_CATS=[
   if(!S.dateBudget.expenses)   S.dateBudget.expenses=[]
   if(!S.dateBudget.funds)      S.dateBudget.funds=[]
   if(!S.dateBudget.hidden)     S.dateBudget.hidden=[]
+  // Migrate old period format (had 'name' + 'end' fields, no deadlineType)
+  var op=S.dateBudget.period
+  if(op&&!op.deadlineType){
+    if(op.end) op.deadlineType='date'
+    else op.deadlineType='none'
+    // start was stored correctly already
+  }
 })()
 
 function dbSave(){
@@ -3484,15 +3487,24 @@ function renderDateBudget(){
   if(!S.dateBudget.funds)      S.dateBudget.funds=[]
   if(!S.dateBudget.hidden)     S.dateBudget.hidden=[]
   if(!S.dateBudget.history)    S.dateBudget.history=[]
-  // Period title + history
-  dbRefreshPeriodTitle()
-  dbRenderHistory()
+  // Auto-archive if deadline passed, then refresh UI
+  dbCheckExpired().then(function(){
+    dbRefreshPeriodTitle()
+    dbRenderHistory()
+    _renderDateBudgetBody()
+  })
+}
 
+function _renderDateBudgetBody(){
   var total=dbTotalFunds(), spent=dbTotalSpent(), rem=Math.max(0,total-spent)
   var cats=dbGetCats()
 
   // Stats
   var se=document.getElementById('db-stats')
+  var p4=dbGetPeriod(), endDate4=dbCalcEndDate(p4)
+  var dlDays4=endDate4?Math.max(0,Math.ceil((new Date(endDate4+'T23:59:59')-new Date())/864e5)):null
+  var dlLabel4=dlDays4===null?'No deadline':dlDays4+' days left'
+  var dlDelta4=dlDays4===null?'du':(dlDays4<=5?'dd':'du')
   if(se) se.innerHTML=
     '<div class="sc" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0);border:1.5px solid #f48fb1">'+
       '<div class="sc-ico">💰</div><div class="sc-lbl" style="color:#880e4f">Total Funds</div>'+
@@ -3507,9 +3519,9 @@ function renderDateBudget(){
       '<div class="sc-val" style="color:#2e7d32">'+P(rem)+'</div>'+
       '<span class="sdelta du">'+(rem>0?'available':'used up')+'</span></div>'+
     '<div class="sc" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0);border:1.5px solid #f48fb1">'+
-      '<div class="sc-ico">🗓️</div><div class="sc-lbl" style="color:#880e4f">Entries</div>'+
-      '<div class="sc-val" style="color:#c2185b">'+((S.dateBudget.expenses||[]).length)+'</div>'+
-      '<span class="sdelta dn">tracked</span></div>'
+      '<div class="sc-ico">⏱️</div><div class="sc-lbl" style="color:#880e4f">Deadline</div>'+
+      '<div class="sc-val" style="color:#c2185b">'+(dlDays4===null?'∞':dlDays4)+'</div>'+
+      '<span class="sdelta '+dlDelta4+'">'+dlLabel4+'</span></div>'
 
   // Category cards — using template literals exactly like renderISavings does
   var ce=document.getElementById('db-cats-list')
@@ -3655,419 +3667,254 @@ function dbGetHistory(){
   return S.dateBudget.history||[]
 }
 
-// Update period subtitle
-function dbRefreshPeriodTitle(){
-  const p=dbGetPeriod()
-  const titleEl=document.getElementById('db-period-title')
-  const subEl=document.getElementById('db-period-sub')
-  const chipEl=document.getElementById('db-period-chip')
-  if(!p||!p.name){
-    if(titleEl) titleEl.textContent='Monthly Date Budget 💑'
-    if(subEl) subEl.textContent='Shared budget for your dates & relationship activities'
-    if(chipEl) chipEl.innerHTML=''
-    return
-  }
-  if(titleEl) titleEl.textContent='Monthly Date Budget 💑'
-  if(subEl) subEl.textContent='Period: '+esc(p.name)+(p.start?' · Started '+fmtD(p.start):'')+(p.days?' · '+p.days+' day budget':' · No deadline')
-  // Build deadline chip exactly like My Budget tab
-  if(!chipEl) return
-  const total=dbTotalFunds(), spent=dbTotalSpent(), rem=Math.max(0,total-spent)
-  const bp=pct(spent,total||1)
-  const hasDays=p.days&&p.days>0
-  const endStr=hasDays?addD(p.start||tod(),p.days-1):null
-  if(hasDays&&endStr){
-    const endD=new Date(endStr+'T23:59:59')
-    const now=new Date()
-    const dl=Math.max(0,Math.ceil((endD-now)/864e5))
-    const urg=dl<=5
-    const startD=p.start?new Date(p.start+'T12:00:00'):now
-    const elapsed=Math.max(0,Math.floor((now-startD)/864e5))
-    const dailyAvg=elapsed>0?spent/elapsed:0
-    const proj=Math.round(dailyAvg*p.days)
-    chipEl.innerHTML=`
-      <div class="cdchip ${urg?'urg':''}" style="margin-bottom:14px">
-        <div class="cd-num" style="${urg?'color:var(--danger)':'color:var(--pink)'}">${dl}</div>
-        <div class="cd-txt">
-          <strong style="${urg?'color:var(--danger)':''}">${dl} days remaining in ${esc(p.name)}</strong><br>
-          <span style="font-size:11px">${fmtD(p.start||tod())} → ${fmtD(endStr)} · ${p.days} day budget · Daily avg: ${P(dailyAvg)}/day · Projected: ${P(proj)}</span>
-          ${dl===0?'<br><span style="color:var(--danger);font-weight:700;font-size:12px">⚠️ Period ended — click 📅 Period to reset</span>':''}
-        </div>
-      </div>
-      <div class="card card-sm" style="margin-bottom:14px">
-        <div class="chd" style="margin-bottom:10px">
-          <span class="ctitle">💑 ${esc(p.name)} Budget Progress</span>
-          <span class="badge ${bp>85?'bd':'ba'}">${bp}% used</span>
-        </div>
-        <div class="pw" style="height:12px"><div class="pf ${bp>85?'pfd':'pfp'}" style="width:${bp}%"></div></div>
-        <div class="pmeta"><span>${P(spent)} spent</span><span>${P(rem)} remaining</span></div>
-      </div>`
-  } else {
-    const elapsed2=p.start?Math.max(1,Math.floor((new Date()-new Date(p.start+'T12:00:00'))/864e5)):1
-    const dailyAvg2=elapsed2>0?spent/elapsed2:0
-    chipEl.innerHTML=`
-      <div class="cdchip" style="margin-bottom:14px">
-        <div class="cd-num">∞</div>
-        <div class="cd-txt">
-          <strong>No Deadline · ${esc(p.name)}</strong><br>
-          <span style="font-size:11px">Started ${fmtD(p.start||tod())} · Daily avg: ${P(dailyAvg2)}/day</span>
-        </div>
-      </div>
-      <div class="card card-sm" style="margin-bottom:14px">
-        <div class="chd" style="margin-bottom:10px">
-          <span class="ctitle">💑 ${esc(p.name)} Budget Progress</span>
-          <span class="badge ${bp>85?'bd':'ba'}">${bp}% used</span>
-        </div>
-        <div class="pw" style="height:12px"><div class="pf ${bp>85?'pfd':'pfp'}" style="width:${bp}%"></div></div>
-        <div class="pmeta"><span>${P(spent)} spent</span><span>${P(rem)} remaining</span></div>
-      </div>`
-  }
-
+// ── Deadline type selector ────────────────────────────────────
+function selectDeadlineType(dtype){
+  document.querySelectorAll('#dp-type-group .pm-btn').forEach(function(b){
+    b.classList.toggle('sel',b.dataset.dtype===dtype)
+  })
+  document.getElementById('dp-duration-wrap').style.display=dtype==='duration'?'block':'none'
+  document.getElementById('dp-date-wrap').style.display=dtype==='date'?'block':'none'
 }
 
-// ── OPEN MODALS ─────────────────────────────────────────────
-function openDateFund(e){
-  document.getElementById('df-eid').value=''
-  document.getElementById('df-amt').value=''
-  document.getElementById('df-note').value=''
-  document.getElementById('df-date').value=tod()
-  document.getElementById('df-who').value='u1'
-  var o1=document.getElementById('df-who-u1'); if(o1) o1.textContent=USERS.u1.name
-  var o2=document.getElementById('df-who-u2'); if(o2) o2.textContent=USERS.u2.name
-  document.getElementById('df-err').style.display='none'
-  document.getElementById('df-title').textContent='💰 Add Funds to Date Budget'
-  document.getElementById('m-dateFund').style.display='flex'
-}
-function openDateCat(e){dbNewCatModal()}
-function openDateCatModal(){dbNewCatModal()}
-function dbNewCatModal(){
-  document.getElementById('dc-eid').value=''
-  document.getElementById('dc-name').value=''
-  document.getElementById('dc-icon').value='💕'
-  document.getElementById('dc-limit').value=''
-  document.getElementById('dc-color').value='#e91e8c'
-  document.getElementById('dc-err').style.display='none'
-  document.getElementById('dc-title').textContent='🏷️ New Date Category'
-  document.getElementById('m-dateCat').style.display='flex'
-}
-function openDateCatEdit(e,cid){
-  var cat=dbGetCats().find(function(c){return c.id===cid}); if(!cat)return
-  document.getElementById('dc-eid').value=cid
-  document.getElementById('dc-name').value=cat.name
-  document.getElementById('dc-icon').value=cat.icon
-  document.getElementById('dc-limit').value=cat.limit||''
-  document.getElementById('dc-color').value=cat.color||'#e91e8c'
-  document.getElementById('dc-err').style.display='none'
-  document.getElementById('dc-title').textContent='✏️ Edit Category'
-  document.getElementById('m-dateCat').style.display='flex'
-}
-function openDateExp(e,catId){
-  document.getElementById('de-eid').value=''
-  document.getElementById('de-desc').value=''
-  document.getElementById('de-amt').value=''
-  document.getElementById('de-note').value=''
-  document.getElementById('de-date').value=tod()
-  document.getElementById('de-who').value='u1'
-  var o1=document.getElementById('de-who-u1'); if(o1) o1.textContent=USERS.u1.name
-  var o2=document.getElementById('de-who-u2'); if(o2) o2.textContent=USERS.u2.name
-  var sel=document.getElementById('de-cat')
-  if(sel){
-    var cats=dbGetCats()
-    sel.innerHTML=cats.map(function(c){
-      return '<option value="'+c.id+'"'+(c.id===catId?' selected':'')+'>'+c.icon+' '+c.name+'</option>'
-    }).join('')
-  }
-  document.getElementById('de-err').style.display='none'
-  document.getElementById('de-title').textContent='🍽️ Add Date Expense'
-  var sb=document.getElementById('de-save-btn'); if(sb) sb.textContent='Add Expense'
-  document.getElementById('m-dateExp').style.display='flex'
-}
-function openDateExpEdit(e,eid){
-  var exp=(S.dateBudget.expenses||[]).find(function(x){return x.id===eid}); if(!exp)return
-  document.getElementById('de-eid').value=eid
-  document.getElementById('de-desc').value=exp.desc
-  document.getElementById('de-amt').value=exp.amt
-  document.getElementById('de-note').value=exp.note||''
-  document.getElementById('de-date').value=exp.date
-  document.getElementById('de-who').value=exp.who||'u1'
-  var o1=document.getElementById('de-who-u1'); if(o1) o1.textContent=USERS.u1.name
-  var o2=document.getElementById('de-who-u2'); if(o2) o2.textContent=USERS.u2.name
-  var sel=document.getElementById('de-cat')
-  if(sel){
-    var cats=dbGetCats()
-    sel.innerHTML=cats.map(function(c){
-      return '<option value="'+c.id+'"'+(c.id===exp.catId?' selected':'')+'>'+c.icon+' '+c.name+'</option>'
-    }).join('')
-  }
-  document.getElementById('de-err').style.display='none'
-  document.getElementById('de-title').textContent='✏️ Edit Date Expense'
-  var sb=document.getElementById('de-save-btn'); if(sb) sb.textContent='Save Changes'
-  document.getElementById('m-dateExp').style.display='flex'
+// Derive end_date from period + deadline settings
+function dbCalcEndDate(p){
+  if(!p) return null
+  if(p.deadlineType==='date') return p.end||null
+  if(p.deadlineType==='duration'&&p.days&&p.start) return addD(p.start, p.days-1)
+  return null
 }
 
-// ── SAVE FUNCTIONS ──────────────────────────────────────────
-async function saveDateFund(e){
-  var amt=parseFloat(document.getElementById('df-amt').value)
-  var who=document.getElementById('df-who').value||'u1'
-  var note=(document.getElementById('df-note').value||'').trim()
-  var date=document.getElementById('df-date').value||tod()
-  if(!amt||amt<=0){showErr('df-err','Enter a valid amount');return}
-  var entry={id:dbUid(),amt:amt,who:who,note:note,date:date}
-  if(SB_READY&&AU_SB_ID){
-    var res=await _sb.from('date_budget_funds').insert({
-      id:entry.id,user_id:AU_SB_ID,amount:amt,funded_by:who,note:note||null,fund_date:date
-    })
-    if(res.error){console.error('fund insert error:',res.error);showErr('df-err','DB error: '+res.error.message);return}
-    if(res.data&&res.data[0]&&res.data[0].id) entry.id=res.data[0].id
-  }
-  S.dateBudget.funds.unshift(entry)
-  dbSave()
-  cm('m-dateFund')
-  toast(P(amt)+' added to date fund! 💰')
-  renderDateBudget()
-}
-
-async function saveDateCat(e){
-  var eid=document.getElementById('dc-eid').value
-  var name=(document.getElementById('dc-name').value||'').trim()
-  var icon=(document.getElementById('dc-icon').value||'').trim()||'💕'
-  var limit=parseFloat(document.getElementById('dc-limit').value||'0')||0
-  var color=document.getElementById('dc-color').value||'#e91e8c'
-  if(!name){showErr('dc-err','Enter a category name');return}
-  if(eid){
-    var idx=-1
-    for(var i=0;i<S.dateBudget.customCats.length;i++){
-      if(S.dateBudget.customCats[i].id===eid){idx=i;break}
-    }
-    if(idx>-1){
-      S.dateBudget.customCats[idx].name=name
-      S.dateBudget.customCats[idx].icon=icon
-      S.dateBudget.customCats[idx].limit=limit
-      S.dateBudget.customCats[idx].color=color
-    }
-    if(SB_READY&&AU_SB_ID){
-      var cup=await _sb.from('date_budget_categories').update({
-        name:name,icon:icon,limit_amount:limit,color:color
-      }).eq('id',eid)
-      if(cup.error) console.error('cat update error:',cup.error)
-    }
-    toast('Category updated ✏️')
-  } else {
-    var newCat={id:dbUid(),name:name,icon:icon,limit:limit,color:color}
-    if(SB_READY&&AU_SB_ID){
-      var res2=await _sb.from('date_budget_categories').insert({
-        id:newCat.id,user_id:AU_SB_ID,name:name,icon:icon,limit_amount:limit,color:color
-      })
-      if(res2.error){console.error('cat insert error:',res2.error);showErr('dc-err','DB error: '+res2.error.message);return}
-      if(res2.data&&res2.data[0]&&res2.data[0].id) newCat.id=res2.data[0].id
-    }
-    S.dateBudget.customCats.push(newCat)
-    toast('"'+name+'" added! 🏷️')
-  }
-  dbSave()
-  document.getElementById('m-dateCat').style.display='none'
-  renderDateBudget()
-}
-
-async function saveDateExp(e){
-  var eid=document.getElementById('de-eid').value
-  var desc=(document.getElementById('de-desc').value||'').trim()
-  var amt=parseFloat(document.getElementById('de-amt').value||'0')
-  var catId=document.getElementById('de-cat').value||'dbc-other'
-  var who=document.getElementById('de-who').value||'u1'
-  var date=document.getElementById('de-date').value||tod()
-  var note=(document.getElementById('de-note').value||'').trim()
-  var errEl=document.getElementById('de-err')
-  if(!desc){errEl.textContent='Enter a description';errEl.style.display='block';return}
-  if(!amt||amt<=0){errEl.textContent='Enter a valid amount';errEl.style.display='block';return}
-  if(!S.dateBudget.expenses)S.dateBudget.expenses=[]
-  if(eid){
-    for(var i=0;i<S.dateBudget.expenses.length;i++){
-      if(S.dateBudget.expenses[i].id===eid){
-        S.dateBudget.expenses[i].desc=desc;S.dateBudget.expenses[i].amt=amt
-        S.dateBudget.expenses[i].catId=catId;S.dateBudget.expenses[i].who=who
-        S.dateBudget.expenses[i].date=date;S.dateBudget.expenses[i].note=note;break
-      }
-    }
-    if(SB_READY&&AU_SB_ID){
-      var upd=await _sb.from('date_budget_expenses').update({
-        description:desc,amount:amt,category_id:catId,paid_by:who,expense_date:date,note:note||null
-      }).eq('id',eid)
-      if(upd.error) console.error('exp update error:',upd.error)
-    }
-    toast('Expense updated ✏️')
-  } else {
-    var entry2={id:dbUid(),desc:desc,amt:amt,catId:catId,who:who,date:date,note:note}
-    if(SB_READY&&AU_SB_ID){
-      var res3=await _sb.from('date_budget_expenses').insert({
-        id:entry2.id,user_id:AU_SB_ID,description:desc,amount:amt,
-        category_id:catId,paid_by:who,expense_date:date,note:note||null
-      })
-      if(res3.error){console.error('exp insert error:',res3.error);showErr('de-err','DB error: '+res3.error.message);return}
-      if(res3.data&&res3.data[0]&&res3.data[0].id) entry2.id=res3.data[0].id
-    }
-    S.dateBudget.expenses.unshift(entry2)
-    toast('"'+desc+'" added! 💕')
-  }
-  dbSave()
-  document.getElementById('m-dateExp').style.display='none'
-  renderDateBudget()
-}
-
-// ── DELETE ──────────────────────────────────────────────────
-async function deleteDateCat(cid){
-  if(!confirm('Delete this category?')) return
-  S.dateBudget.customCats=(S.dateBudget.customCats||[]).filter(function(c){return c.id!==cid})
-  if(SB_READY&&AU_SB_ID){
-    var dr=await _sb.from('date_budget_categories').delete().eq('id',cid)
-    if(dr.error) console.error('cat delete error:',dr.error)
-  }
-  dbSave();toast('Category removed 🗑️');renderDateBudget()
-}
-async function deleteDateExp(eid){
-  if(!confirm('Remove this expense?')) return
-  S.dateBudget.expenses=(S.dateBudget.expenses||[]).filter(function(e){return e.id!==eid})
-  if(SB_READY&&AU_SB_ID) await _sb.from('date_budget_expenses').delete().eq('id',eid)
-  dbSave();toast('Expense removed 🗑️');renderDateBudget()
-}
-async function deleteDateFund(fid){
-  if(!confirm('Remove this fund entry?')) return
-  S.dateBudget.funds=(S.dateBudget.funds||[]).filter(function(f){return f.id!==fid})
-  if(SB_READY&&AU_SB_ID) await _sb.from('date_budget_funds').delete().eq('id',fid)
-  dbSave();toast('Fund entry removed 🗑️');renderDateBudget()
-}
-
-// ── EDIT FUND ───────────────────────────────────────────────
-function openEditFund(fid){
-  var fd=(S.dateBudget.funds||[]).find(function(f){return f.id===fid}); if(!fd)return
-  document.getElementById('def-fid').value=fid
-  document.getElementById('def-amt').value=fd.amt
-  document.getElementById('def-note').value=fd.note||''
-  document.getElementById('def-date').value=fd.date
-  document.getElementById('def-who').value=fd.who||'u1'
-  var o1=document.getElementById('def-who-u1');if(o1) o1.textContent=USERS.u1.name
-  var o2=document.getElementById('def-who-u2');if(o2) o2.textContent=USERS.u2.name
-  document.getElementById('def-err').style.display='none'
-  document.getElementById('m-dateEditFund').style.display='flex'
-}
-async function saveEditFund(){
-  var fid=document.getElementById('def-fid').value
-  var amt=parseFloat(document.getElementById('def-amt').value)
-  var who=document.getElementById('def-who').value||'u1'
-  var note=(document.getElementById('def-note').value||'').trim()
-  var date=document.getElementById('def-date').value||tod()
-  if(!amt||amt<=0){document.getElementById('def-err').textContent='Enter a valid amount';document.getElementById('def-err').style.display='block';return}
-  var idx=-1
-  for(var i=0;i<(S.dateBudget.funds||[]).length;i++){
-    if(S.dateBudget.funds[i].id===fid){idx=i;break}
-  }
-  if(idx>-1){
-    S.dateBudget.funds[idx].amt=amt;S.dateBudget.funds[idx].who=who
-    S.dateBudget.funds[idx].note=note;S.dateBudget.funds[idx].date=date
-  }
-  if(SB_READY&&AU_SB_ID){
-    await _sb.from('date_budget_funds').update({amount:amt,funded_by:who,note:note||null,fund_date:date}).eq('id',fid)
-  }
-  dbSave();cm('m-dateEditFund');toast('Fund entry updated ✏️');renderDateBudget()
-}
-
-// ── PERIOD MANAGEMENT ───────────────────────────────────────
-function toggleDPDays(cb){
-  var dw=document.getElementById('dp-days')
-  var inf=document.getElementById('dp-end-info')
-  if(dw) dw.disabled=cb.checked
-  if(inf) inf.style.display='none'
-}
-function dpUpdateEndDate(){
-  var start=document.getElementById('dp-start').value
-  var days=parseInt(document.getElementById('dp-days').value)
-  var inf=document.getElementById('dp-end-info')
-  var disp=document.getElementById('dp-end-display')
-  if(start&&days>0&&inf&&disp){
-    var end=addD(start,days-1)
-    disp.textContent=fmtD(end)
-    inf.style.display='block'
-  } else if(inf){
-    inf.style.display='none'
-  }
-}
-function openDatePeriod(){
-  const p=dbGetPeriod()||{}
-  const isUnlimited=!p.days
-  document.getElementById('dp-name').value=p.name||''
-  document.getElementById('dp-start').value=p.start||tod()
-  document.getElementById('dp-days').value=p.days||30
-  document.getElementById('dp-days').disabled=isUnlimited
-  document.getElementById('dp-unlimited').checked=isUnlimited
-  document.getElementById('dp-err').style.display='none'
-  document.getElementById('dp-days').oninput=dpUpdateEndDate
-  document.getElementById('dp-start').onchange=dpUpdateEndDate
-  document.getElementById('dp-modal-title').textContent=p.name?'✏️ Edit Budget Period':'📅 Set Budget Period'
-  var resetBtn=document.getElementById('dp-reset-btn')
-  if(resetBtn) resetBtn.style.display=p.name?'inline-flex':'none'
-  dpUpdateEndDate()
-  document.getElementById('m-datePeriod').style.display='flex'
-}
-async function saveDatePeriod(){
-  var name=(document.getElementById('dp-name').value||'').trim()
-  var start=document.getElementById('dp-start').value||tod()
-  var unlimited=document.getElementById('dp-unlimited').checked
-  var days=parseInt(document.getElementById('dp-days').value)||0
-  var errEl=document.getElementById('dp-err')
-  if(!name){errEl.textContent='Enter a period name';errEl.style.display='block';return}
-  if(!unlimited&&(!days||days<1)){errEl.textContent='Set a duration or check "No Deadline"';errEl.style.display='block';return}
-  var end=(!unlimited&&days>0)?addD(start,days-1):null
-  if(!S.dateBudget.period) S.dateBudget.period={}
-  var periodId=S.dateBudget.period.id||dbUid()
-  S.dateBudget.period={id:periodId,name:name,start:start,days:unlimited?null:days,end:end}
-  dbSave()
-  if(SB_READY&&AU_SB_ID){
-    var res=await _sb.from('date_budget_periods').upsert({
-      id:periodId,user_id:AU_SB_ID,name:name,
-      start_date:start,end_date:end||null,
-      duration_days:unlimited?null:days,is_active:true
-    })
-    if(res.error) console.error('period save error:',res.error)
-  }
-  cm('m-datePeriod')
-  toast('Period "'+name+'" saved! 📅')
-  dbRefreshPeriodTitle()
-  renderDateBudget()
-}
-async function resetDatePeriod(){
+// Check if current period has expired and auto-archive if so
+async function dbCheckExpired(){
   var p=dbGetPeriod()
-  if(!p||!p.name){cm('m-datePeriod');return}
-  if(!confirm('Archive "'+p.name+'" and reset for a new period? All current funds and expenses will be moved to History.')) return
+  if(!p||!p.start) return
+  var endDate=dbCalcEndDate(p)
+  if(!endDate) return
+  var now=new Date(), endD=new Date(endDate+'T23:59:59')
+  if(now>endD){
+    // Auto-archive silently
+    await dbDoArchive(p, false)
+  }
+}
+
+// Core archive function — shared by auto-expire and manual archive
+async function dbDoArchive(p, showPrompt){
   if(!S.dateBudget.history) S.dateBudget.history=[]
+  var periodLabel=p.start?fmtD(p.start):'?'
   var snapshot={
-    id:dbUid(),name:p.name,start:p.start,end:p.end,
-    archivedAt:tod(),totalFunds:dbTotalFunds(),totalSpent:dbTotalSpent(),
-    funds:(S.dateBudget.funds||[]).length,expenses:(S.dateBudget.expenses||[]).length
+    id:dbUid(),
+    name:periodLabel+(p.end?' → '+fmtD(p.end):''),
+    start:p.start,
+    end:dbCalcEndDate(p),
+    archivedAt:tod(),
+    totalFunds:dbTotalFunds(),
+    totalSpent:dbTotalSpent(),
+    funds:(S.dateBudget.funds||[]).length,
+    expenses:(S.dateBudget.expenses||[]).length
   }
   S.dateBudget.history.push(snapshot)
+  // Reset active data (keep categories)
   S.dateBudget.funds=[]
   S.dateBudget.expenses=[]
-  var prevDays=p.days||30
-  S.dateBudget.period={name:'New Period',start:tod(),days:prevDays,end:addD(tod(),prevDays-1)}
+  // Start a fresh period from today, preserve deadline settings
+  S.dateBudget.period={
+    id:dbUid(),
+    start:tod(),
+    deadlineType:p.deadlineType||'duration',
+    days:p.days||30,
+    end:''
+  }
   dbSave()
+  // Sync to Supabase
   if(SB_READY&&AU_SB_ID){
-    var hres=await _sb.from('date_budget_history').insert({
+    await _sb.from('date_budget_history').insert({
       id:snapshot.id,user_id:AU_SB_ID,period_name:snapshot.name,
       start_date:snapshot.start,end_date:snapshot.end||null,
       archived_at:snapshot.archivedAt,total_funds:snapshot.totalFunds,
       total_spent:snapshot.totalSpent
-    })
-    if(hres.error) console.error('history insert error:',hres.error)
+    }).catch(function(){})
+    await _sb.from('date_budget_periods').upsert({
+      id:S.dateBudget.period.id,user_id:AU_SB_ID,
+      name:tod(),start_date:tod(),
+      end_date:dbCalcEndDate(S.dateBudget.period)||null,
+      duration_days:S.dateBudget.period.days||null,
+      deadline_type:S.dateBudget.period.deadlineType||'duration',
+      is_active:true
+    }).catch(function(){})
     await _sb.from('date_budget_funds').delete().eq('user_id',AU_SB_ID).catch(function(){})
     await _sb.from('date_budget_expenses').delete().eq('user_id',AU_SB_ID).catch(function(){})
   }
-  cm('m-datePeriod')
-  toast('Budget archived! Set your new period name and dates 📅')
-  dbRefreshPeriodTitle()
-  renderDateBudget()
-  setTimeout(function(){openDatePeriod()},400)
+  if(showPrompt) toast('Budget archived and fresh period started! 🎉')
 }
 
-// ── EDIT FUND ───────────────────────────────────────────────
+// Update period subtitle and deadline chip
+function dbRefreshPeriodTitle(){
+  var p=dbGetPeriod()
+  var titleEl=document.getElementById('db-period-title')
+  var subEl=document.getElementById('db-period-sub')
+  var chipEl=document.getElementById('db-period-chip')
+  if(titleEl) titleEl.textContent='Monthly Date Budget 💑'
+  if(!p||!p.start){
+    if(subEl) subEl.textContent='Shared budget for your dates & relationship activities'
+    if(chipEl) chipEl.innerHTML=''
+    return
+  }
+  var endDate=dbCalcEndDate(p)
+  if(subEl){
+    if(endDate) subEl.textContent='Started '+fmtD(p.start)+' · Deadline: '+fmtD(endDate)
+    else subEl.textContent='Started '+fmtD(p.start)+' · No deadline'
+  }
+  if(!chipEl) return
+  var total=dbTotalFunds(), spent=dbTotalSpent(), rem=Math.max(0,total-spent)
+  var bp=pct(spent,total||1)
+  if(endDate){
+    var endD=new Date(endDate+'T23:59:59')
+    var now=new Date()
+    var dl=Math.max(0,Math.ceil((endD-now)/864e5))
+    var urg=dl<=5
+    var startD=p.start?new Date(p.start+'T12:00:00'):now
+    var elapsed=Math.max(0,Math.floor((now-startD)/864e5))
+    var dailyAvg=elapsed>0?spent/elapsed:0
+    var totalDays=p.start?Math.max(1,Math.ceil((endD-startD)/864e5)):30
+    var proj=Math.round(dailyAvg*totalDays)
+    var daysLabel=p.deadlineType==='duration'&&p.days?(p.days+'-day cycle'):(fmtD(p.start)+' → '+fmtD(endDate))
+    chipEl.innerHTML=
+      '<div class="cdchip '+(urg?'urg':'')+'" style="margin-bottom:14px">'+
+        '<div class="cd-num" style="'+(urg?'color:var(--danger)':'color:var(--pink)')+'">'+dl+'</div>'+
+        '<div class="cd-txt">'+
+          '<strong style="'+(urg?'color:var(--danger)':'')+'">days remaining · '+esc(daysLabel)+'</strong><br>'+
+          '<span style="font-size:11px">Daily avg: '+P(dailyAvg)+'/day · Projected: '+P(proj)+'</span>'+
+          (dl===0?'<br><span style="color:var(--danger);font-weight:700;font-size:12px">⚠️ Deadline reached — archiving automatically on next open</span>':'')
+        +'</div>'+
+      '</div>'+
+      '<div class="card card-sm" style="margin-bottom:14px">'+
+        '<div class="chd" style="margin-bottom:10px">'+
+          '<span class="ctitle">💑 Date Budget Progress</span>'+
+          '<span class="badge '+(bp>85?'bd':'ba')+'">'+bp+'% used</span>'+
+        '</div>'+
+        '<div class="pw" style="height:12px"><div class="pf '+(bp>85?'pfd':'pfp')+'" style="width:'+bp+'%"></div></div>'+
+        '<div class="pmeta"><span>'+P(spent)+' spent</span><span>'+P(rem)+' remaining</span></div>'+
+      '</div>'
+  }else{
+    chipEl.innerHTML=
+      '<div class="cdchip" style="margin-bottom:14px">'+
+        '<div class="cd-num">∞</div>'+
+        '<div class="cd-txt">'+
+          '<strong>No deadline</strong><br>'+
+          '<span style="font-size:11px">Started '+fmtD(p.start||tod())+' · Click ⏱️ Deadline to set one</span>'+
+        '</div>'+
+      '</div>'
+  }
+}
+
+// Render history section
+function dbRenderHistory(){
+  var hist=dbGetHistory()
+  var cntEl=document.getElementById('db-history-cnt')
+  var listEl=document.getElementById('db-history-list')
+  if(cntEl) cntEl.textContent=hist.length+' period'+(hist.length!==1?'s':'')
+  var card=document.getElementById('db-history-card')
+  if(card) card.style.display=hist.length===0?'none':'block'
+  if(!listEl) return
+  if(!hist.length){listEl.innerHTML='';return}
+  listEl.innerHTML=[...hist].reverse().map(function(h){
+    var rem=Math.max(0,(h.totalFunds||0)-(h.totalSpent||0))
+    return '<div style="border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;background:var(--bg2)">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:4px;margin-bottom:8px">'
+        +'<div><div style="font-size:14px;font-weight:700;color:var(--pink)">'+esc(h.name||'Archived Period')+'</div>'
+        +'<div style="font-size:11px;color:var(--txt3)">'+(h.start?fmtD(h.start):'')+(h.end?' → '+fmtD(h.end):'')+'</div></div>'
+        +'<span style="font-size:11px;color:var(--txt3);white-space:nowrap">📦 '+fmtD(h.archivedAt||h.end||'')+'</span>'
+      +'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'
+        +'<div style="flex:1;min-width:80px;background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
+          +'<div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px">Funds</div>'
+          +'<div style="font-size:14px;font-weight:800;color:var(--pink)">'+P(h.totalFunds||0)+'</div></div>'
+        +'<div style="flex:1;min-width:80px;background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
+          +'<div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px">Spent</div>'
+          +'<div style="font-size:14px;font-weight:800;color:var(--danger)">'+P(h.totalSpent||0)+'</div></div>'
+        +'<div style="flex:1;min-width:80px;background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
+          +'<div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px">Saved</div>'
+          +'<div style="font-size:14px;font-weight:800;color:var(--teal)">'+P(rem)+'</div></div>'
+      +'</div>'
+      +'<div style="font-size:11px;color:var(--txt3);margin-top:8px">'
+        +((h.expenses||0)+' expense'+(h.expenses!==1?'s':'')+' · '+(h.funds||0)+' fund entr'+(h.funds!==1?'ies':'y'))
+      +'</div>'
+    +'</div>'
+  }).join('')
+}
+
+// Open Deadline modal
+function openDateDeadline(){
+  var p=dbGetPeriod()||{}
+  var dtype=p.deadlineType||'duration'
+  document.getElementById('dp-start').value=p.start||tod()
+  document.getElementById('dp-days').value=p.days||30
+  document.getElementById('dp-end').value=p.end||''
+  document.getElementById('dp-err').style.display='none'
+  selectDeadlineType(dtype)
+  // Show Archive button only if a period has data
+  var archBtn=document.getElementById('dp-archive-btn')
+  var hasData=(S.dateBudget.funds||[]).length>0||(S.dateBudget.expenses||[]).length>0
+  if(archBtn) archBtn.style.display=hasData?'inline-flex':'none'
+  document.getElementById('m-datePeriod').style.display='flex'
+}
+
+// Keep old name as alias for any lingering calls
+function openDatePeriod(){ openDateDeadline() }
+
+// Save deadline settings
+async function saveDateDeadline(){
+  var start=document.getElementById('dp-start').value||tod()
+  var selBtn=document.querySelector('#dp-type-group .pm-btn.sel')
+  var dtype=selBtn?selBtn.dataset.dtype:'duration'
+  var days=parseInt(document.getElementById('dp-days').value)||30
+  var endDate=document.getElementById('dp-end').value||''
+  var errEl=document.getElementById('dp-err')
+  if(dtype==='duration'&&(!days||days<1)){errEl.textContent='Enter a duration in days';errEl.style.display='block';return}
+  if(dtype==='date'&&!endDate){errEl.textContent='Pick a specific end date';errEl.style.display='block';return}
+  if(!S.dateBudget.period) S.dateBudget.period={}
+  S.dateBudget.period.start=S.dateBudget.period.start||start
+  S.dateBudget.period.deadlineType=dtype
+  S.dateBudget.period.days=dtype==='duration'?days:null
+  S.dateBudget.period.end=dtype==='date'?endDate:''
+  if(!S.dateBudget.period.id) S.dateBudget.period.id=dbUid()
+  dbSave()
+  var endComputed=dbCalcEndDate(S.dateBudget.period)
+  if(SB_READY&&AU_SB_ID){
+    await _sb.from('date_budget_periods').upsert({
+      id:S.dateBudget.period.id,
+      user_id:AU_SB_ID,
+      name:S.dateBudget.period.start,
+      start_date:S.dateBudget.period.start,
+      end_date:endComputed||null,
+      duration_days:S.dateBudget.period.days||null,
+      deadline_type:dtype,
+      is_active:true
+    }).catch(function(){})
+  }
+  cm('m-datePeriod')
+  var label=dtype==='none'?'No deadline set':dtype==='duration'?days+'-day cycle':'Deadline: '+fmtD(endComputed)
+  toast('Deadline saved! '+label+' ⏱️')
+  dbRefreshPeriodTitle()
+  renderDateBudget()
+}
+
+// Manual "Archive Now" button in the modal
+async function archiveDateBudgetNow(){
+  var p=dbGetPeriod()
+  if(!p){cm('m-datePeriod');return}
+  if(!confirm('Archive the current date budget to History and start a fresh period?\n\nAll funds and expenses will be archived. Categories are kept.')) return
+  cm('m-datePeriod')
+  await dbDoArchive(p,true)
+  dbRefreshPeriodTitle()
+  dbRenderHistory()
+  renderDateBudget()
+}
+
+// Legacy alias kept for any old Supabase load code paths
+async function resetDatePeriod(){ await archiveDateBudgetNow() }
+
+// Edit Fund entry
 function openEditFund(fid){
   var fd=(S.dateBudget.funds||[]).find(function(f){return f.id===fid}); if(!fd)return
   document.getElementById('def-fid').value=fid
@@ -4092,14 +3939,20 @@ async function saveEditFund(){
     if(S.dateBudget.funds[i].id===fid){idx=i;break}
   }
   if(idx>-1){
-    S.dateBudget.funds[idx].amt=amt;S.dateBudget.funds[idx].who=who
-    S.dateBudget.funds[idx].note=note;S.dateBudget.funds[idx].date=date
+    S.dateBudget.funds[idx].amt=amt
+    S.dateBudget.funds[idx].who=who
+    S.dateBudget.funds[idx].note=note
+    S.dateBudget.funds[idx].date=date
   }
   if(SB_READY&&AU_SB_ID){
     await _sb.from('date_budget_funds').update({amount:amt,funded_by:who,note:note||null,fund_date:date}).eq('id',fid)
   }
-  dbSave();cm('m-dateEditFund');toast('Fund entry updated ✏️');renderDateBudget()
+  dbSave()
+  cm('m-dateEditFund')
+  toast('Fund entry updated ✏️')
+  renderDateBudget()
 }
+
 
 // ── SUPABASE LOAD on login ───────────────────────────────────
 async function loadDateBudgetFromSB(){
@@ -4108,9 +3961,24 @@ async function loadDateBudgetFromSB(){
     var cr=await _sb.from('date_budget_categories').select('*').order('created_at')
     var er=await _sb.from('date_budget_expenses').select('*').order('expense_date',{ascending:false})
     var fr=await _sb.from('date_budget_funds').select('*').order('fund_date',{ascending:false})
-    if(!cr.error&&cr.data) S.dateBudget.customCats=(cr.data||[]).map(function(c){return{id:c.id,name:c.name,icon:c.icon||'💕',limit:+(c.limit_amount)||0,color:c.color||'#e91e8c'}})
-    if(!er.error&&er.data) S.dateBudget.expenses=(er.data||[]).map(function(e){return{id:e.id,desc:e.description,amt:+(e.amount)||0,catId:e.category_id||'dbc-other',who:e.paid_by||'u1',date:e.expense_date,note:e.note||''}})
-    if(!fr.error&&fr.data) S.dateBudget.funds=(fr.data||[]).map(function(f){return{id:f.id,amt:+(f.amount)||0,who:f.funded_by||'u1',note:f.note||'',date:f.fund_date}})
+
+    if(!cr.error){
+      var dbRows=cr.data||[]
+      // If no categories exist in DB yet, seed the defaults for this user
+      if(dbRows.length===0){
+        await dbSeedDefaultCats()
+        // Re-fetch after seeding
+        var cr2=await _sb.from('date_budget_categories').select('*').order('created_at')
+        dbRows=cr2.data||[]
+      }
+      // All categories (default + custom) come from DB now
+      S.dateBudget.customCats=dbRows.map(function(c){
+        return{id:c.id,name:c.name,icon:c.icon||'💕',limit:+(c.limit_amount)||0,color:c.color||'#e91e8c'}
+      })
+    }
+    if(!er.error) S.dateBudget.expenses=(er.data||[]).map(function(e){return{id:e.id,desc:e.description,amt:+(e.amount)||0,catId:e.category_id||'dbc-other',who:e.paid_by||'u1',date:e.expense_date,note:e.note||''}})
+    if(!fr.error) S.dateBudget.funds=(fr.data||[]).map(function(f){return{id:f.id,amt:+(f.amount)||0,who:f.funded_by||'u1',note:f.note||'',date:f.fund_date}})
+    // Load history from Supabase
     try{
       var hr=await _sb.from('date_budget_history').select('*').order('created_at',{ascending:false})
       if(!hr.error&&hr.data) S.dateBudget.history=(hr.data||[]).map(function(h){
@@ -4119,12 +3987,20 @@ async function loadDateBudgetFromSB(){
           funds:0,expenses:0}
       })
     }catch(e){}
+    // Load active period
     try{
       var pr=await _sb.from('date_budget_periods').select('*').eq('is_active',true).order('created_at',{ascending:false}).limit(1)
       if(!pr.error&&pr.data&&pr.data.length){
         var pd=pr.data[0]
-        S.dateBudget.period={id:pd.id,name:pd.name,start:pd.start_date,
-          days:pd.duration_days||null,end:pd.end_date||null}
+        // Support both new (deadline_type) and legacy (name) period format
+        var dtype=pd.deadline_type||(pd.end_date?'date':(pd.duration_days?'duration':'none'))
+        S.dateBudget.period={
+          id:pd.id,
+          start:pd.start_date,
+          deadlineType:dtype,
+          days:pd.duration_days||null,
+          end:pd.end_date||''
+        }
       }
     }catch(e){}
     dbSave()
@@ -4132,6 +4008,845 @@ async function loadDateBudgetFromSB(){
   }catch(err){console.error('loadDateBudgetFromSB error:',err)}
 }
 
+async function dbSeedDefaultCats(){
+  // Seed all 6 default categories into Supabase for this user (runs once on first login)
+  var toInsert=DB_DEFAULT_CATS.map(function(c){
+    return{
+      id:dbUid(),
+      user_id:AU_SB_ID,
+      name:c.name,
+      icon:c.icon,
+      color:c.color,
+      limit_amount:0
+    }
+  })
+  var res=await _sb.from('date_budget_categories').insert(toInsert)
+  if(res.error) console.error('dbSeedDefaultCats error:',res.error)
+  else console.log('✅ Default date budget categories seeded to Supabase')
+}
+
+
+// ─── CATEGORIES ───────────────────────────────────────────
+function openEditCat(e,cid){
+  CP(e);const c=S.cats.find(x=>x.id===cid);if(!c)return
+  document.getElementById('cat-eid').value=cid;document.getElementById('cat-name').value=c.name;document.getElementById('cat-icon').value=c.icon;document.getElementById('cat-color').value=c.color
+  document.getElementById('cat-mtitle').textContent='✏️ Edit Category';document.getElementById('cat-err').style.display='none'
+  document.getElementById('m-addCat').style.display='flex'
+}
+async function saveCat(e){
+  CP(e);const eid=document.getElementById('cat-eid').value,rawName=document.getElementById('cat-name').value.trim(),icon=document.getElementById('cat-icon').value.trim()||rawName.match(/^\p{Emoji}/u)?.[0]||'🏷️',color=document.getElementById('cat-color').value
+  if(!rawName){showErr('cat-err','Enter a category name');return}
+  if(eid){
+    if(SB_READY&&AU_SB_ID)await _sb.from('categories').update({name:rawName,icon,color}).eq('id',eid)
+    const idx=S.cats.findIndex(c=>c.id===eid);if(idx>-1)S.cats[idx]={...S.cats[idx],name:rawName,icon,color};toast('Category updated ✏️')
+  } else {
+    let newId=uid()
+    if(SB_READY&&AU_SB_ID){const saved=await _sb.from('categories').insert({user_id:AU_SB_ID,name:rawName,icon,color}).select().single();if(saved.data)newId=saved.data.id}
+    S.cats.push({id:newId,name:rawName,icon,color});toast('Category created! 🏷️')
+  }
+  cm('m-addCat');renderCats()
+}
+function delCat(cid){
+  const fb=S.cats.find(c=>c.name==='Other')?.id||S.cats[0]?.id
+  S.cats=S.cats.filter(c=>c.id!==cid);['u1','u2'].forEach(u=>(S.expenses[u]||[]).forEach(e=>{if(e.catId===cid)e.catId=fb}))
+  toast('Category deleted 🗑️');renderCats()
+}
+
+// ─── TODO ─────────────────────────────────────────────────
+// ─── TODO CATEGORY HELPERS ────────────────────────────────
+function toggleTodoCustCat(){
+  const v=document.getElementById('todo-cat')?.value
+  const wrap=document.getElementById('todo-custcat-wrap')
+  if(wrap)wrap.style.display=(v==='other'?'block':'none')
+}
+function toggleSchedCustType(){
+  const v=document.getElementById('sched-type')?.value
+  const wrap=document.getElementById('sched-custtype-wrap')
+  if(wrap)wrap.style.display=(v==='other'?'block':'none')
+}
+
+// Map category value → display label (supports custCat)
+const TODO_CAT_LABELS={
+  school:'🎓 School',personal:'👤 Personal',finance:'💰 Finance',
+  couple:'💑 Couple',work:'💼 Work',health:'💊 Health',other:'✨ Other'
+}
+function todoDisplayCat(t){
+  if(t.cat==='other'&&t.custCat)return t.custCat
+  return TODO_CAT_LABELS[t.cat]||'✨ Other'
+}
+
+const SCHED_TYPE_LABELS={
+  online:'💻 Online',onsite:'🏫 On-site',lab:'🔬 Lab',study:'📖 Study',other:'✨ Other'
+}
+function schedDisplayType(s){
+  if(s.type==='other'&&s.custType)return s.custType
+  return SCHED_TYPE_LABELS[s.type]||'📚 Class'
+}
+
+async function saveTodo(e){
+  CP(e)
+  const eid=document.getElementById('todo-eid').value
+  const title=document.getElementById('todo-title').value.trim()
+  const due=document.getElementById('todo-due').value
+  const pri=document.getElementById('todo-pri').value
+  const notes=document.getElementById('todo-notes').value.trim()
+  const cat=document.getElementById('todo-cat').value
+  const custCat=cat==='other'?(document.getElementById('todo-custcat')?.value?.trim()||''):''
+  const tu=S._todoUser==='mine'?AU:(AU==='u1'?'u2':'u1')
+  const sbUserId=tu==='u1'?AU_SB_ID:AU_PARTNER_ID
+  if(!title){showErr('todo-err','Enter a task title');return}
+  if(eid){
+    if(SB_READY&&sbUserId)await sbUpdateTodo(eid,{title,due_date:due||null,priority:pri,notes,category:cat,custom_cat:custCat})
+    const idx=S.todos.findIndex(t=>t.id===eid)
+    if(idx>-1)S.todos[idx]={...S.todos[idx],title,due,pri,notes,cat,custCat}
+    toast('Task updated ✏️')
+  } else {
+    let newId=uid()
+    if(SB_READY&&sbUserId){
+      const saved=await sbCreateTodo({user_id:sbUserId,title,due_date:due||null,priority:pri,notes,category:cat,custom_cat:custCat,is_done:false})
+      if(saved)newId=saved.id; else{showErr('todo-err','Failed to save');return}
+    }
+    S.todos.push({id:newId,title,due,pri,cat,custCat,notes,done:false,uid:tu})
+    toast('Task added! ✅')
+  }
+  cm('m-addTodo');renderTodo()
+}
+
+function openEditTodo(e,id){
+  CP(e)
+  const t=S.todos.find(x=>x.id===id);if(!t)return
+  document.getElementById('todo-eid').value=id
+  document.getElementById('todo-title').value=t.title
+  document.getElementById('todo-due').value=t.due||''
+  document.getElementById('todo-pri').value=t.pri||'mid'
+  document.getElementById('todo-notes').value=t.notes||''
+  const catEl=document.getElementById('todo-cat')
+  if(catEl)catEl.value=t.cat||'personal'
+  const custWrap=document.getElementById('todo-custcat-wrap')
+  const custInp=document.getElementById('todo-custcat')
+  if(custWrap)custWrap.style.display=(t.cat==='other'?'block':'none')
+  if(custInp)custInp.value=t.custCat||''
+  document.getElementById('todo-mtitle').textContent='✏️ Edit Task'
+  document.getElementById('todo-err').style.display='none'
+  document.getElementById('m-addTodo').style.display='flex'
+}
+async function delTodo(id){if(SB_READY&&AU_SB_ID)await sbDeleteTodo(id);S.todos=S.todos.filter(t=>t.id!==id);toast('Task deleted 🗑️');renderTodo()}
+
+// ─── FX ───────────────────────────────────────────────────
+const CATS_FX=['🐱','😺','😸','🐾','✨','🎀','💕','🌸','🐈','🌺']
+function CP(e){if(!e?.clientX)return;const el=document.createElement('div');el.className='catpop';el.textContent=CATS_FX[Math.floor(Math.random()*CATS_FX.length)];el.style.left=(e.clientX+(Math.random()*20-10))+'px';el.style.top=(e.clientY-14)+'px';document.body.appendChild(el);setTimeout(()=>el.remove(),750)}
+function toast(msg,icon='✅'){const el=document.createElement('div');el.className='toast';el.innerHTML=`<span>${icon}</span><span>${esc(msg)}</span>`;document.body.appendChild(el);setTimeout(()=>{el.style.transition='opacity .25s';el.style.opacity='0';setTimeout(()=>el.remove(),260)},2800)}
+function showErr(id,msg){const el=document.getElementById(id);if(el){el.textContent=msg;el.style.display='block'}}
+
+// ─── INIT ─────────────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════
+//  WALLET — no-time-limit money tracker
+// ═══════════════════════════════════════════════════
+
+function openAddTxn(scope, type){
+  S._ctx = scope
+  document.getElementById('txn-scope').value = scope
+  document.getElementById('txn-desc').value = ''
+  document.getElementById('txn-amt').value = ''
+  document.getElementById('txn-cat').value = ''
+  document.getElementById('txn-date').value = new Date().toISOString().split('T')[0]
+  const errEl = document.getElementById('txn-err')
+  if(errEl) errEl.style.display = 'none'
+  setTxnType(type || 'income')
+  document.getElementById('m-addTxn').style.display = 'flex'
+  const titleEl = document.querySelector('#m-addTxn .mtitle')
+  if(titleEl) titleEl.textContent = scope === 'mine' ? '💵 Add to My Wallet' : '👛 Add to Partner Wallet'
+}
+
+let _txnType = 'income'
+function setTxnType(t){
+  _txnType = t
+  const bi = document.getElementById('txn-type-income')
+  const be = document.getElementById('txn-type-expense')
+  if(bi) { bi.className = t === 'income' ? 'btn btn-p' : 'btn btn-g' }
+  if(be) { be.className = t === 'expense' ? 'btn btn-p' : 'btn btn-g' }
+}
+
+async function saveWalletTxn(e){
+  CP(e)
+  const scope = document.getElementById('txn-scope').value || 'mine'
+  const uid2 = scope === 'mine' ? AU : (AU === 'u1' ? 'u2' : 'u1')
+  const desc = document.getElementById('txn-desc').value.trim()
+  const amt  = parseFloat(document.getElementById('txn-amt').value)
+  const date = document.getElementById('txn-date').value
+  const cat  = document.getElementById('txn-cat').value.trim()
+  if(!desc || !amt || amt <= 0 || !date){ showErr('txn-err','Fill all required fields'); return }
+  const sbUserId = uid2 === 'u1' ? AU_SB_ID : AU_PARTNER_ID
+  const txn = { id: uid(), uid: uid2, desc, amt, type: _txnType, date, cat }
+  // Save to Supabase
+  if(SB_READY && sbUserId){
+    const { data, error } = await _sb.from('wallet_transactions').insert({
+      user_id: sbUserId, description: desc, amount: amt,
+      type: _txnType, transaction_date: date, category: cat || null
+    }).select().single()
+    if(error){ showErr('txn-err','Failed to save. Check Supabase.'); return }
+    if(data) txn.id = data.id
+  }
+  if(!S.wallet[uid2]) S.wallet[uid2] = []
+  S.wallet[uid2].unshift(txn)
+  cm('m-addTxn')
+  toast(`Transaction saved! ${_txnType === 'income' ? '💚' : '❤️'}`)
+  renderWallet(scope)
+}
+
+async function deleteWalletTxn(scope, tid){
+  const uid2 = scope === 'mine' ? AU : (AU === 'u1' ? 'u2' : 'u1')
+  if(!confirm('Delete this transaction?')) return
+  if(SB_READY && AU_SB_ID){
+    await _sb.from('wallet_transactions').delete().eq('id', tid)
+  }
+  S.wallet[uid2] = (S.wallet[uid2] || []).filter(t => t.id !== tid)
+  toast('Transaction deleted 🗑️')
+  renderWallet(scope)
+}
+
+function renderWallet(scope){
+  const uid2 = scope === 'mine' ? AU : (AU === 'u1' ? 'u2' : 'u1')
+  const u    = USERS[uid2]
+  const el   = document.getElementById(scope === 'mine' ? 'mymoney-content' : 'partnermoney-content')
+  const titleEl = document.getElementById(scope === 'mine' ? 'mymoney-title' : 'partnermoney-title')
+  if(titleEl) titleEl.textContent = scope === 'mine'
+    ? `${u.name}'s Wallet 💵`
+    : `${u.name}'s Wallet 👛`
+  if(!el) return
+  const txns = (S.wallet[uid2] || []).slice().sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+  const totalInc = txns.filter(t => t.type === 'income').reduce((s,t) => s + t.amt, 0)
+  const totalExp = txns.filter(t => t.type === 'expense').reduce((s,t) => s + t.amt, 0)
+  const bal = totalInc - totalExp
+  const isOwn = scope === 'mine'
+  el.innerHTML = `
+    <div class="wallet-hero">
+      <div class="wallet-label">Total Balance</div>
+      <div class="wallet-bal">${P(bal)}</div>
+      <div class="wallet-sub">
+        <span>💚 In: ${P(totalInc)}</span>
+        <span>❤️ Out: ${P(totalExp)}</span>
+        <span>📝 ${txns.length} transactions</span>
+      </div>
+    </div>
+    <div class="wallet-actions">
+      <button class="btn btn-p" onclick="openAddTxn('${scope}','income');CP(event)">💚 Add Income</button>
+      <button class="btn" style="background:rgba(255,59,48,.12);color:#ff3b30;border-color:rgba(255,59,48,.25)" onclick="openAddTxn('${scope}','expense');CP(event)">❤️ Add Expense</button>
+    </div>
+    <div class="card" style="padding:14px 16px">
+      <div class="chd" style="margin-bottom:10px">
+        <span class="ctitle">📋 All Transactions</span>
+        <span style="font-size:11px;color:var(--txt3)">${txns.length} entries</span>
+      </div>
+      ${txns.length === 0
+        ? `<div class="wallet-empty"><div style="font-size:40px;margin-bottom:10px">💵</div><div style="font-size:14px;font-weight:700;margin-bottom:4px">No transactions yet</div><p style="font-size:12px">Tap "Add Income" or "Add Expense" to get started!</p></div>`
+        : `<div class="txn-list">${txns.map(t => `
+          <div class="txn-item">
+            <div class="txn-icon ${t.type === 'income' ? 'inc' : 'exp'}">${t.type === 'income' ? '💚' : '❤️'}</div>
+            <div class="txn-info">
+              <div class="txn-desc">${esc(t.desc)}</div>
+              <div class="txn-meta">${fmtD(t.date)}${t.cat ? ' · ' + esc(t.cat) : ''} · ${u.avatar} ${u.name}</div>
+            </div>
+            <div class="txn-amt ${t.type === 'income' ? 'inc' : 'exp'}">${t.type === 'income' ? '+' : '-'}${P(t.amt)}</div>
+            ${isOwn ? `<button class="txn-del" onclick="deleteWalletTxn('${scope}','${t.id}')" title="Delete">🗑️</button>` : ''}
+          </div>`).join('')}</div>`
+      }
+    </div>`
+}
+
+// ── Load wallet transactions from Supabase ──────────────
+async function sbLoadWalletTxns(userId){
+  if(!SB_READY) return []
+  const { data, error } = await _sb.from('wallet_transactions')
+    .select('*').eq('user_id', userId).order('transaction_date', { ascending: false })
+  if(error){ console.warn('Wallet load error:', error); return [] }
+  return data || []
+}
+
+
+
+// ═══════════════════════════════════════════════════
+//  WALLET SUB-CATEGORIES
+// ═══════════════════════════════════════════════════
+let _wTxnType = 'income'
+function setWTxnType(t){
+  _wTxnType=t
+  document.getElementById('wtxn-income').className=t==='income'?'btn btn-p':'btn btn-g'
+  document.getElementById('wtxn-expense').className=t==='expense'?'btn btn-p':'btn btn-g'
+}
+function openAddWalletSub(){
+  document.getElementById('wsub-eid').value=''
+  document.getElementById('wsub-name').value=''
+  document.getElementById('wsub-balance').value='0'
+  document.getElementById('wsub-type').value='💵 Cash'
+  const errEl=document.getElementById('wsub-err');if(errEl)errEl.style.display='none'
+  const sb=document.getElementById('wsub-save-btn');if(sb)sb.textContent='Create'
+  document.querySelector('#m-addWalletSub .mtitle').textContent='💵 New Wallet'
+  document.getElementById('m-addWalletSub').style.display='flex'
+}
+function openEditWalletSub(wid){
+  const w=S.walletSubs.find(x=>x.id===wid);if(!w)return
+  document.getElementById('wsub-eid').value=wid
+  document.getElementById('wsub-name').value=w.name
+  document.getElementById('wsub-balance').value=w.openingBalance||0
+  document.getElementById('wsub-type').value=w.type
+  const sb=document.getElementById('wsub-save-btn');if(sb)sb.textContent='Save Changes'
+  document.querySelector('#m-addWalletSub .mtitle').textContent='✏️ Edit Wallet'
+  document.getElementById('m-addWalletSub').style.display='flex'
+}
+async function saveWalletSub(e){
+  CP(e)
+  const eid=document.getElementById('wsub-eid')?.value
+  const name=document.getElementById('wsub-name').value.trim()
+  const type=document.getElementById('wsub-type').value
+  const openingBal=parseFloat(document.getElementById('wsub-balance').value)||0
+  if(!name){showErr('wsub-err','Name is required');return}
+  if(eid){
+    const w=S.walletSubs.find(x=>x.id===eid);if(!w){showErr('wsub-err','Not found');return}
+    w.name=name;w.type=type;w.openingBalance=openingBal
+    if(SB_READY&&AU_SB_ID)await _sb.from('financial_accounts').update({name,account_type:type,opening_balance:openingBal}).eq('id',eid)
+    cm('m-addWalletSub');toast(`"${name}" updated! ✏️`);renderWallet('mine');return
+  }
+  const w={id:uid(),name,type,openingBalance:openingBal,transactions:[]}
+  if(SB_READY&&AU_SB_ID){
+    const {data,error}=await _sb.from('financial_accounts').insert({
+      user_id:AU_SB_ID,name,account_type:type,opening_balance:openingBal,account_section:'wallet'
+    }).select().single()
+    if(error){showErr('wsub-err','Failed to save. Run the Accounts SQL patch first.');return}
+    if(data)w.id=data.id
+  }
+  S.walletSubs.push(w)
+  cm('m-addWalletSub');toast(`"${name}" wallet created! 💵`);renderWallet('mine')
+}
+async function deleteWalletSub(wid){
+  if(!confirm('Delete this wallet and all its transactions?'))return
+  if(SB_READY&&AU_SB_ID)await _sb.from('financial_accounts').delete().eq('id',wid)
+  S.walletSubs=S.walletSubs.filter(w=>w.id!==wid)
+  toast('Wallet deleted 🗑️');renderWallet('mine')
+}
+function openAddWalletTxn(wid,type){
+  document.getElementById('wtxn-wid').value=wid
+  document.getElementById('wtxn-desc').value=''
+  document.getElementById('wtxn-amt').value=''
+  document.getElementById('wtxn-cat').value=''
+  document.getElementById('wtxn-date').value=new Date().toISOString().split('T')[0]
+  const errEl=document.getElementById('wtxn-err');if(errEl)errEl.style.display='none'
+  setWTxnType(type||'income')
+  document.getElementById('m-addWalletTxn').style.display='flex'
+}
+async function saveWalletSubTxn(e){
+  CP(e)
+  const wid=document.getElementById('wtxn-wid').value
+  const desc=document.getElementById('wtxn-desc').value.trim()
+  const amt=parseFloat(document.getElementById('wtxn-amt').value)
+  const date=document.getElementById('wtxn-date').value
+  const cat=document.getElementById('wtxn-cat').value.trim()
+  if(!desc||!amt||amt<=0||!date){showErr('wtxn-err','Fill all required fields');return}
+  const w=S.walletSubs.find(x=>x.id===wid);if(!w){showErr('wtxn-err','Wallet not found');return}
+  const txn={id:uid(),wid,desc,amt,type:_wTxnType,date,cat}
+  if(SB_READY&&AU_SB_ID){
+    const {data,error}=await _sb.from('account_transactions').insert({
+      account_id:wid,user_id:AU_SB_ID,description:desc,amount:amt,
+      type:_wTxnType,transaction_date:date,category:cat||null
+    }).select().single()
+    if(error){showErr('wtxn-err','Failed to save');return}
+    if(data)txn.id=data.id
+  }
+  if(!w.transactions)w.transactions=[]
+  w.transactions.unshift(txn)
+  cm('m-addWalletTxn');toast(`Transaction saved! ${_wTxnType==='income'?'💚':'❤️'}`);renderWallet('mine')
+}
+async function deleteWalletTxn2(wid,tid){
+  if(!confirm('Delete this transaction?'))return
+  const w=S.walletSubs.find(x=>x.id===wid);if(!w)return
+  if(SB_READY&&AU_SB_ID)await _sb.from('account_transactions').delete().eq('id',tid)
+  w.transactions=(w.transactions||[]).filter(t=>t.id!==tid)
+  toast('Transaction deleted 🗑️');renderWallet('mine')
+}
+function renderWallet(scope){
+  const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
+  const u=USERS[uid2]
+  const el=document.getElementById(scope==='mine'?'mymoney-content':'partnermoney-content')
+  const titleEl=document.getElementById(scope==='mine'?'mymoney-title':'partnermoney-title')
+  if(titleEl)titleEl.textContent=`${u.name}'s Wallet 💵`
+  if(!el)return
+  const wallets=scope==='mine'?S.walletSubs:[]
+  const grandBal=wallets.reduce((s,w)=>{
+    const txns=w.transactions||[]
+    const inc=txns.filter(t=>t.type==='income').reduce((x,t)=>x+t.amt,0)
+    const exp=txns.filter(t=>t.type==='expense').reduce((x,t)=>x+t.amt,0)
+    return s+(w.openingBalance||0)+inc-exp
+  },0)
+  el.innerHTML=`
+    <div class="wallet-hero">
+      <div class="wallet-label">Total Wallet Balance</div>
+      <div class="wallet-bal">${P(grandBal)}</div>
+      <div class="wallet-sub"><span>💳 ${wallets.length} wallet${wallets.length!==1?'s':''}</span></div>
+    </div>
+    ${wallets.length===0
+      ?`<div class="card"><div class="empty"><div class="empty-ico">💵</div><div class="empty-t">No wallets yet</div><p>Tap "+ New Wallet" to create your first wallet category!</p></div></div>`
+      :wallets.map(w=>{
+          const txns=w.transactions||[]
+          const inc=txns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amt,0)
+          const exp=txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amt,0)
+          const bal=(w.openingBalance||0)+inc-exp
+          const sorted=[...txns].sort((a,b)=>b.date.localeCompare(a.date))
+          return `<div class="wsub-card">
+            <div class="wsub-hd">
+              <div class="wsub-icon" style="background:var(--pink-soft,#f5e0ea)">${w.type?.split(' ')[0]||'💵'}</div>
+              <div class="wsub-info">
+                <div class="wsub-name">${esc(w.name)} <span style="font-size:11px;color:var(--txt3);font-weight:400">${w.type}</span></div>
+                <div class="wsub-bal" style="color:${bal>=0?'#34c759':'#ff3b30'}">${P(bal)}</div>
+                <div class="wsub-meta">💚 ${P((w.openingBalance||0)+inc)} in · ❤️ ${P(exp)} out</div>
+              </div>
+              <div class="wsub-actions">
+                <button class="btn btn-p btn-xs" onclick="openAddWalletTxn('${w.id}','income')">💚 In</button>
+                <button class="btn btn-xs" style="background:rgba(255,59,48,.12);color:#ff3b30;border-color:rgba(255,59,48,.25)" onclick="openAddWalletTxn('${w.id}','expense')">❤️ Out</button>
+                <button class="btn btn-xs btn-o" onclick="openEditWalletSub('${w.id}')">✏️</button>
+                <button class="btn btn-xs btn-d" onclick="deleteWalletSub('${w.id}')">🗑️</button>
+              </div>
+            </div>
+            ${sorted.length===0
+              ?'<div style="text-align:center;padding:8px;font-size:12px;color:var(--txt3)">No transactions yet</div>'
+              :`<div class="txn-list">${sorted.slice(0,5).map(t=>`
+                <div class="txn-item">
+                  <div class="txn-icon ${t.type==='income'?'inc':'exp'}">${t.type==='income'?'💚':'❤️'}</div>
+                  <div class="txn-info"><div class="txn-desc">${esc(t.desc)}</div><div class="txn-meta">${fmtD(t.date)}${t.cat?' · '+esc(t.cat):''}</div></div>
+                  <div class="txn-amt ${t.type==='income'?'inc':'exp'}">${t.type==='income'?'+':'-'}${P(t.amt)}</div>
+                  <button class="txn-del" onclick="deleteWalletTxn2('${w.id}','${t.id}')" title="Delete">🗑️</button>
+                </div>`).join('')}
+              ${sorted.length>5?`<div style="text-align:center;padding:6px;font-size:11px;color:var(--txt3)">+${sorted.length-5} more</div>`:''}</div>`
+            }
+          </div>`
+        }).join('')
+    }`
+}
+
+// ═══════════════════════════════════════════════════
+//  SAVINGS SUB-CATEGORIES (replaced simple savings)
+// ═══════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════
+//  SAVINGS SUB-CATEGORIES
+// ═══════════════════════════════════════════════════
+let _savCatColor = '#d4537e', _savEntryType = 'add'
+function selectSavCatColor(c,el){
+  _savCatColor=c
+  document.querySelectorAll('#savcat-colors .cat-color-swatch').forEach(s=>s.classList.remove('active'))
+  if(el)el.classList.add('active')
+  const cp=document.getElementById('savcat-custom-color');if(cp)cp.style.outline='none'
+}
+function selectSavCatColorCustom(color){
+  _savCatColor=color
+  document.querySelectorAll('#savcat-colors .cat-color-swatch').forEach(s=>s.classList.remove('active'))
+  const cp=document.getElementById('savcat-custom-color')
+  if(cp)cp.style.outline='3px solid #fff'
+}
+function setSavEntryType(t){
+  _savEntryType=t
+  document.getElementById('saventry-add').className=t==='add'?'btn btn-p':'btn btn-g'
+  document.getElementById('saventry-withdraw').className=t==='withdraw'?'btn btn-p':'btn btn-g'
+}
+function openAddSavCat(scope){
+  document.getElementById('savcat-scope').value=scope
+  document.getElementById('savcat-name').value=''
+  document.getElementById('savcat-icon').value='🎯'
+  _savCatColor='#d4537e'
+  document.querySelectorAll('#savcat-colors .cat-color-swatch').forEach((s,i)=>s.classList.toggle('active',i===0))
+  const cp=document.getElementById('savcat-custom-color');if(cp){cp.value='#d4537e';cp.style.outline='none'}
+  const cont=document.getElementById('savcat-colors');if(cont)cont.dataset.customColor=''
+  const errEl=document.getElementById('savcat-err');if(errEl)errEl.style.display='none'
+  document.getElementById('m-addSavCat').style.display='flex'
+}
+async function saveSavCat(e){
+  CP(e)
+  const scope=document.getElementById('savcat-scope').value||'mine'
+  const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
+  const name=document.getElementById('savcat-name').value.trim()
+  const icon=document.getElementById('savcat-icon').value.trim()||'🎯'
+  const sbUserId=uid2==='u1'?AU_SB_ID:AU_PARTNER_ID
+  if(!name){showErr('savcat-err','Name is required');return}
+  const cat={id:uid(),uid:uid2,name,icon,color:_savCatColor,entries:[]}
+  if(SB_READY&&sbUserId){
+    const {data,error}=await _sb.from('personal_savings_goals').insert({
+      user_id:sbUserId,title:name,icon,target_amount:0,color:_savCatColor
+    }).select().single()
+    if(error){showErr('savcat-err','Failed to save');return}
+    if(data)cat.id=data.id
+  }
+  if(!S.savingsCats[uid2])S.savingsCats[uid2]=[]
+  S.savingsCats[uid2].push(cat)
+  cm('m-addSavCat');toast(`"${name}" savings created! 🐱`);renderISavings(scope)
+}
+async function deleteSavCat(scope,catId){
+  const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
+  if(!confirm('Delete this savings category and all its entries?'))return
+  if(SB_READY&&AU_SB_ID)await _sb.from('personal_savings_goals').delete().eq('id',catId)
+  S.savingsCats[uid2]=(S.savingsCats[uid2]||[]).filter(c=>c.id!==catId)
+  toast('Category deleted 🗑️');renderISavings(scope)
+}
+function openAddSavEntry(scope,catId){
+  document.getElementById('saventry-scope').value=scope
+  document.getElementById('saventry-catid').value=catId
+  document.getElementById('saventry-amt').value=''
+  document.getElementById('saventry-note').value=''
+  document.getElementById('saventry-date').value=new Date().toISOString().split('T')[0]
+  const errEl=document.getElementById('saventry-err');if(errEl)errEl.style.display='none'
+  setSavEntryType('add')
+  document.getElementById('m-addSavEntry').style.display='flex'
+}
+async function saveSavEntry(e){
+  CP(e)
+  const scope=document.getElementById('saventry-scope').value||'mine'
+  const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
+  const catId=document.getElementById('saventry-catid').value
+  const amt=parseFloat(document.getElementById('saventry-amt').value)
+  const note=document.getElementById('saventry-note').value.trim()
+  const date=document.getElementById('saventry-date').value
+  const sbUserId=uid2==='u1'?AU_SB_ID:AU_PARTNER_ID
+  if(!amt||amt<=0||!date){showErr('saventry-err','Enter a valid amount and date');return}
+  const cat=(S.savingsCats[uid2]||[]).find(c=>c.id===catId)
+  if(!cat){showErr('saventry-err','Category not found');return}
+  const entry={id:uid(),catId,type:_savEntryType,amt,note,date}
+  if(SB_READY&&sbUserId){
+    const {data,error}=await _sb.from('personal_savings_contributions').insert({
+      goal_id:catId,user_id:sbUserId,amount:_savEntryType==='add'?amt:-amt,
+      note:note||null,contribution_date:date
+    }).select().single()
+    if(error){showErr('saventry-err','Failed to save');return}
+    if(data)entry.id=data.id
+  }
+  if(!cat.entries)cat.entries=[]
+  cat.entries.unshift(entry)
+  cm('m-addSavEntry');toast(_savEntryType==='add'?'Savings added! 💚':'Withdrawal recorded ❤️');renderISavings(scope)
+}
+async function deleteSavEntry2(scope,catId,entryId){
+  const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
+  if(!confirm('Delete this savings entry?'))return
+  if(SB_READY&&AU_SB_ID)await _sb.from('personal_savings_contributions').delete().eq('id',entryId)
+  const cat=(S.savingsCats[uid2]||[]).find(c=>c.id===catId)
+  if(cat)cat.entries=(cat.entries||[]).filter(en=>en.id!==entryId)
+  toast('Entry deleted 🗑️');renderISavings(scope)
+}
+function renderISavings(scope){
+  const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
+  const u=USERS[uid2]
+  const el=document.getElementById(scope==='mine'?'mysavings-content':'partnersavings-content')
+  const titleEl=document.getElementById(scope==='mine'?'mysavings-title':'partnersavings-title')
+  if(titleEl)titleEl.textContent=scope==='mine'?`${u.name}'s Savings 🐱`:`${u.name}'s Savings 🐈`
+  if(!el)return
+  // PRIVACY: Partner savings are private — only the partner can see their own savings
+  if(scope==='partner'){
+    el.innerHTML=`<div class="card" style="text-align:center;padding:32px 20px">
+      <div style="font-size:48px;margin-bottom:12px">🔒</div>
+      <div style="font-size:16px;font-weight:700;color:var(--txt);margin-bottom:8px">${u.name}'s Savings are Private</div>
+      <div style="font-size:13px;color:var(--txt3)">Personal savings are only visible to the account owner.<br>Your partner can only see their own savings when they log in.</div>
+    </div>`
+    return
+  }
+  const cats=S.savingsCats[uid2]||[]
+  const grandTotal=cats.reduce((s,c)=>{
+    return s+(c.entries||[]).reduce((x,en)=>x+(en.type==='add'?en.amt:-en.amt),0)
+  },0)
+  const isOwn=scope==='mine'
+  el.innerHTML=`
+    <div class="isav-hero" style="background:linear-gradient(135deg,#34c759,#007aff)">
+      <div class="isav-hero-label">Total Savings Balance</div>
+      <div class="isav-hero-amt">${P(grandTotal)}</div>
+      <div class="isav-hero-sub">across ${cats.length} categor${cats.length!==1?'ies':'y'}</div>
+    </div>
+    ${cats.length===0
+      ?`<div class="card"><div class="empty"><div class="empty-ico">🐱</div><div class="empty-t">No savings categories yet</div><p>Tap "+ New Category" to create one!</p></div></div>`
+      :cats.map(cat=>{
+          const bal=(cat.entries||[]).reduce((s,en)=>s+(en.type==='add'?en.amt:-en.amt),0)
+          const totalIn=(cat.entries||[]).filter(en=>en.type==='add').reduce((s,en)=>s+en.amt,0)
+          const totalOut=(cat.entries||[]).filter(en=>en.type==='withdraw').reduce((s,en)=>s+en.amt,0)
+          const sorted=[...(cat.entries||[])].sort((a,b)=>b.date.localeCompare(a.date))
+          return `<div class="isav-goal">
+            <div class="isav-goal-hd">
+              <div class="isav-goal-icon" style="background:${cat.color}22;color:${cat.color}">${cat.icon}</div>
+              <div class="isav-goal-info">
+                <div class="isav-goal-name">${esc(cat.name)}</div>
+                <div class="isav-goal-meta" style="color:${bal>=0?'#34c759':'#ff3b30'};font-weight:700">${P(bal)}</div>
+                <div style="font-size:10px;color:var(--txt3)">💚 +${P(totalIn)} · ❤️ -${P(totalOut)}</div>
+              </div>
+              <div class="isav-goal-actions">
+                ${isOwn?`<button class="btn btn-xs btn-p" onclick="openAddSavEntry('${scope}','${cat.id}')">+ Add</button>
+                <button class="btn btn-xs btn-d" onclick="deleteSavCat('${scope}','${cat.id}')">🗑️</button>`:''}
+              </div>
+            </div>
+            ${sorted.length===0
+              ?'<div style="font-size:12px;color:var(--txt3);text-align:center;padding:6px">No entries yet</div>'
+              :`<div class="txn-list">${sorted.slice(0,5).map(en=>`
+                <div class="txn-item">
+                  <div class="txn-icon ${en.type==='add'?'inc':'exp'}">${en.type==='add'?'💚':'❤️'}</div>
+                  <div class="txn-info"><div class="txn-desc">${esc(en.note||'Savings entry')}</div><div class="txn-meta">${fmtD(en.date)}</div></div>
+                  <div class="txn-amt ${en.type==='add'?'inc':'exp'}">${en.type==='add'?'+':'-'}${P(en.amt)}</div>
+                  ${isOwn?`<button class="txn-del" onclick="deleteSavEntry2('${scope}','${cat.id}','${en.id}')" title="Delete">🗑️</button>`:''}
+                </div>`).join('')}
+              ${sorted.length>5?`<div style="text-align:center;padding:4px;font-size:11px;color:var(--txt3)">+${sorted.length-5} more</div>`:''}</div>`
+            }
+          </div>`
+        }).join('')
+    }`
+}
+
+// ═══════════════════════════════════════════════════
+//  FINANCIAL ACCOUNTS — per-user, no time limit
+// ═══════════════════════════════════════════════════
+let _acctTxnType = 'income'
+function setAcctTxnType(t){
+  _acctTxnType=t
+  document.getElementById('acct-txn-income').className=t==='income'?'btn btn-p':'btn btn-g'
+  document.getElementById('acct-txn-expense').className=t==='expense'?'btn btn-p':'btn btn-g'
+}
+
+function toggleAcctCustomType(){
+  const sel=document.getElementById('acct-type')
+  const isOther=sel?.value==='💼 Others'
+  const wrap=document.getElementById('acct-custom-wrap')
+  if(wrap)wrap.style.display=isOther?'block':'none'
+}
+function getAcctType(){
+  const sel=document.getElementById('acct-type')
+  if(sel?.value==='💼 Others'){
+    const emoji=document.getElementById('acct-custom-emoji')?.value.trim()||'💼'
+    const name=document.getElementById('acct-custom-name')?.value.trim()||'Custom'
+    return `${emoji} ${name}`
+  }
+  return sel?.value||'💵 Cash'
+}
+function openAddAccount(){
+  document.getElementById('acct-eid').value=''
+  document.getElementById('acct-name').value=''
+  document.getElementById('acct-balance').value='0'
+  document.getElementById('acct-type').value='💵 Cash'
+  const cwrap=document.getElementById('acct-custom-wrap');if(cwrap)cwrap.style.display='none'
+  const errEl=document.getElementById('acct-err');if(errEl)errEl.style.display='none'
+  const sb=document.getElementById('acct-save-btn');if(sb)sb.textContent='Create'
+  document.querySelector('#m-addAccount .mtitle').textContent='🏧 New Account'
+  document.getElementById('m-addAccount').style.display='flex'
+}
+
+function openEditAccount(aid){
+  const a=S.accounts.find(x=>x.id===aid);if(!a)return
+  document.getElementById('acct-eid').value=aid
+  document.getElementById('acct-name').value=a.name
+  document.getElementById('acct-balance').value=a.openingBalance||0
+  // Handle custom type in select
+  const typeEl=document.getElementById('acct-type')
+  const stdTypes=['💵 Cash','📱 GCash','🏦 Bank','💳 E-Wallet','🚨 Emergency Fund','🎯 Savings','🐷 Piggy Bank','₿ Crypto Wallet','✈️ Travel Money','💼 Others']
+  if(stdTypes.includes(a.type)){
+    typeEl.value=a.type
+    const cwrap=document.getElementById('acct-custom-wrap');if(cwrap)cwrap.style.display='none'
+  } else {
+    typeEl.value='💼 Others'
+    // Parse emoji and name from stored type
+    const parts=a.type.split(' ')
+    const emojiEl=document.getElementById('acct-custom-emoji')
+    const nameEl=document.getElementById('acct-custom-name')
+    if(emojiEl)emojiEl.value=parts[0]||'💼'
+    if(nameEl)nameEl.value=parts.slice(1).join(' ')||''
+    const cwrap=document.getElementById('acct-custom-wrap');if(cwrap)cwrap.style.display='block'
+  }
+  const sb=document.getElementById('acct-save-btn');if(sb)sb.textContent='Save Changes'
+  document.querySelector('#m-addAccount .mtitle').textContent='✏️ Edit Account'
+  document.getElementById('m-addAccount').style.display='flex'
+}
+
+async function saveAccount(e){
+  CP(e)
+  const eid=document.getElementById('acct-eid')?.value
+  const name=document.getElementById('acct-name').value.trim()
+  const type=getAcctType()
+  const openingBal=parseFloat(document.getElementById('acct-balance').value)||0
+  if(!name){showErr('acct-err','Account name is required');return}
+  if(eid){
+    // Edit existing
+    const a=S.accounts.find(x=>x.id===eid);if(!a){showErr('acct-err','Not found');return}
+    a.name=name;a.type=type;a.openingBalance=openingBal
+    if(SB_READY&&AU_SB_ID)await _sb.from('financial_accounts').update({name,account_type:type,opening_balance:openingBal}).eq('id',eid)
+    cm('m-addAccount');toast(`"${name}" updated! ✏️`);renderAccounts();return
+  }
+  const acct={id:uid(),uid:'u1',name,type,openingBalance:openingBal,transactions:[]}
+  if(SB_READY&&AU_SB_ID){
+    const {data,error}=await _sb.from('financial_accounts').insert({user_id:AU_SB_ID,name,account_type:type,opening_balance:openingBal}).select().single()
+    if(error){showErr('acct-err','Failed to save. Run the Accounts SQL patch.');return}
+    if(data)acct.id=data.id
+  }
+  S.accounts.push(acct)
+  cm('m-addAccount');toast(`"${name}" account created! 🏧`);renderAccounts()
+}
+
+async function deleteAccount(aid){
+  if(!confirm('Delete this account and all its transactions?'))return
+  if(SB_READY&&AU_SB_ID)await _sb.from('financial_accounts').delete().eq('id',aid)
+  S.accounts=S.accounts.filter(a=>a.id!==aid)
+  toast('Account deleted 🗑️');renderAccounts()
+}
+
+function openAddAcctTxn(aid,type){
+  document.getElementById('acct-txn-aid').value=aid
+  document.getElementById('acct-txn-desc').value=''
+  document.getElementById('acct-txn-amt').value=''
+  document.getElementById('acct-txn-cat').value=''
+  document.getElementById('acct-txn-date').value=new Date().toISOString().split('T')[0]
+  const errEl=document.getElementById('acct-txn-err');if(errEl)errEl.style.display='none'
+  setAcctTxnType(type||'income')
+  document.getElementById('m-addAcctTxn').style.display='flex'
+}
+
+async function saveAcctTxn(e){
+  CP(e)
+  const aid=document.getElementById('acct-txn-aid').value
+  const desc=document.getElementById('acct-txn-desc').value.trim()
+  const amt=parseFloat(document.getElementById('acct-txn-amt').value)
+  const date=document.getElementById('acct-txn-date').value
+  const cat=document.getElementById('acct-txn-cat').value.trim()
+  if(!desc||!amt||amt<=0||!date){showErr('acct-txn-err','Fill all required fields');return}
+  const acct=S.accounts.find(a=>a.id===aid);if(!acct){showErr('acct-txn-err','Account not found');return}
+  const txn={id:uid(),aid,desc,amt,type:_acctTxnType,date,cat}
+  if(SB_READY&&AU_SB_ID){
+    const {data,error}=await _sb.from('account_transactions').insert({
+      account_id:aid,user_id:AU_SB_ID,description:desc,amount:amt,
+      type:_acctTxnType,transaction_date:date,category:cat||null
+    }).select().single()
+    if(error){showErr('acct-txn-err','Failed to save');return}
+    if(data)txn.id=data.id
+  }
+  if(!acct.transactions)acct.transactions=[]
+  acct.transactions.unshift(txn)
+  cm('m-addAcctTxn');toast(`Transaction saved! ${_acctTxnType==='income'?'💚':'❤️'}`);renderAccounts()
+}
+
+async function deleteAcctTxn(aid,tid){
+  if(!confirm('Delete this transaction?'))return
+  const acct=S.accounts.find(a=>a.id===aid);if(!acct)return
+  if(SB_READY&&AU_SB_ID)await _sb.from('account_transactions').delete().eq('id',tid)
+  acct.transactions=(acct.transactions||[]).filter(t=>t.id!==tid)
+  toast('Transaction deleted 🗑️');renderAccounts()
+}
+
+function renderAccounts(){
+  const el=document.getElementById('myaccounts-content');if(!el)return
+  const titleEl=document.getElementById('myaccounts-title')
+  if(titleEl)titleEl.textContent=`${USERS[AU].name}'s Accounts 🏧`
+  const accounts=S.accounts||[]
+  const grandTotal=accounts.reduce((s,a)=>{
+    const txns=a.transactions||[]
+    const inc=txns.filter(t=>t.type==='income').reduce((x,t)=>x+t.amt,0)
+    const exp=txns.filter(t=>t.type==='expense').reduce((x,t)=>x+t.amt,0)
+    return s+(a.openingBalance||0)+inc-exp
+  },0)
+
+  el.innerHTML=`
+    <div class="wallet-hero" style="background:linear-gradient(135deg,var(--pink),var(--purple))">
+      <div class="wallet-label">Total Across All Accounts</div>
+      <div class="wallet-bal">${P(grandTotal)}</div>
+      <div class="wallet-sub"><span>📂 ${accounts.length} account${accounts.length!==1?'s':''}</span></div>
+    </div>
+    ${accounts.length===0
+      ?`<div class="card"><div class="empty"><div class="empty-ico">🏧</div><div class="empty-t">No accounts yet</div><p>Create your first account to start tracking!</p></div></div>`
+      :accounts.map(a=>{
+          const txns=a.transactions||[]
+          const inc=txns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amt,0)
+          const exp=txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amt,0)
+          const bal=(a.openingBalance||0)+inc-exp
+          const sorted=[...txns].sort((x,y)=>y.date.localeCompare(x.date))
+          return `<div class="card" style="margin-bottom:12px;padding:14px 16px">
+            <div class="chd" style="margin-bottom:12px">
+              <div>
+                <div style="font-size:16px;font-weight:700">${a.type} ${esc(a.name)}</div>
+                <div style="font-size:11px;color:var(--txt3);margin-top:2px">Balance: <strong style="color:${bal>=0?'#34c759':'#ff3b30'};font-size:14px">${P(bal)}</strong> &nbsp;·&nbsp; 💚 ${P((a.openingBalance||0)+inc)} in &nbsp;·&nbsp; ❤️ ${P(exp)} out</div>
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+                <button class="btn btn-p btn-xs" onclick="openAddAcctTxn('${a.id}','income')" style="background:linear-gradient(135deg,var(--teal),#27ae60);border:none">💚 Income</button>
+                <button class="btn btn-xs btn-d" onclick="openAddAcctTxn('${a.id}','expense')" style="background:rgba(231,76,60,.1);color:var(--danger);border-color:rgba(231,76,60,.3)">❤️ Expense</button>
+                <button class="btn btn-xs btn-o" onclick="openEditAccount('${a.id}')">✏️ Edit</button>
+                <button class="btn btn-xs btn-d" onclick="deleteAccount('${a.id}')">🗑️</button>
+              </div>
+            </div>
+            ${sorted.length===0
+              ?'<div class="empty" style="padding:12px"><p>No transactions yet</p></div>'
+              :`<div class="txn-list">${sorted.slice(0,10).map(t=>`
+                <div class="txn-item">
+                  <div class="txn-icon ${t.type==='income'?'inc':'exp'}">${t.type==='income'?'💚':'❤️'}</div>
+                  <div class="txn-info"><div class="txn-desc">${esc(t.desc)}</div><div class="txn-meta">${fmtD(t.date)}${t.cat?' · '+esc(t.cat):''}</div></div>
+                  <div class="txn-amt ${t.type==='income'?'inc':'exp'}">${t.type==='income'?'+':'-'}${P(t.amt)}</div>
+                  <button class="txn-del" onclick="deleteAcctTxn('${a.id}','${t.id}')" title="Delete">🗑️</button>
+                </div>`).join('')}
+              ${sorted.length>10?`<div style="text-align:center;padding:8px;font-size:12px;color:var(--txt3)">+${sorted.length-10} more transactions</div>`:''}</div>`
+            }
+          </div>`
+        }).join('')
+    }`
+}
+
+async function sbLoadWalletSubs(){
+  if(!SB_READY||!AU_SB_ID) return []
+  const {data,error}=await _sb.from('financial_accounts')
+    .select('*, account_transactions(*)')
+    .eq('user_id',AU_SB_ID).eq('account_section','wallet')
+  if(error){console.warn('WalletSubs load error:',error);return []}
+  return data||[]
+}
+async function sbLoadSavingsCats(userId){
+  if(!SB_READY) return []
+  const {data,error}=await _sb.from('personal_savings_goals')
+    .select('*, personal_savings_contributions(*)')
+    .eq('user_id',userId).order('created_at',{ascending:true})
+  if(error){console.warn('SavingsCats load error:',error);return []}
+  return data||[]
+}
+async function sbLoadAccounts(){
+  if(!SB_READY||!AU_SB_ID) return []
+  const {data,error}=await _sb.from('financial_accounts')
+    .select('*, account_transactions(*)')
+    .eq('user_id',AU_SB_ID)
+  if(error){console.warn('Accounts load error:',error);return []}
+  return data||[]
+}
+
+// ── Visibility listener: if the browser throttled us while in the
+// background and loading didn't finish, complete it when the user
+// comes back to the tab. This is the main fix for "need to switch
+// tabs to make the site load" — a known browser throttling behaviour.
+document.addEventListener('visibilitychange',async()=>{
+  if(document.visibilityState!=='visible'||!AU_SB_ID)return
+  const loader=document.getElementById('_pairlyLoader')
+  const loaderVisible=loader&&loader.style.display==='flex'
+  if(loaderVisible){
+    // Was still loading in background — finish now that tab is active
+    await loadAllDataFromSB()
+    hideAuthOverlay()
+  }
+})
+
+window.addEventListener('DOMContentLoaded',()=>{
+  // Pre-load cached photos instantly before Supabase responds
+  try{
+    const p1=localStorage.getItem('pairly_photo_u1'); if(p1) USERS.u1.photo=p1
+    const p2=localStorage.getItem('pairly_photo_u2'); if(p2) USERS.u2.photo=p2
+  }catch(e){}
+  document.getElementById('staticDate').textContent=new Date().toLocaleDateString('en-PH',{weekday:'short',month:'long',day:'numeric',year:'numeric'})
+  document.getElementById('ttTrack').classList.toggle('on',!DARK)
+  document.querySelectorAll('input[type=date]').forEach(i=>{if(!i.value)i.value=tod()})
+  initPetals()
+  // Supabase CDN is in <head> — init immediately
+  _initSBClient()
+  if(SB_READY){
+    _startAuth()
+  } else {
+    // Small safety delay in case CDN loaded slightly late
+    setTimeout(()=>{
+      if(!SB_READY) _initSBClient()
+      _startAuth()
+    }, 500)
+  }
+})
+
+// ─── AUTH FLOW ──────────────────────────────────────────────
 function showAuthOverlay(){
   // Hide the loading screen first
   const loader=document.getElementById('_pairlyLoader')
@@ -4323,12 +5038,13 @@ async function afterSignIn(){
   }
   updateSBAv()
   await loadAllDataFromSB()
+  await loadDateBudgetFromSB()
   updateSBAv()
 }
 
 function resetLocalData(){
   S.budgets={u1:[],u2:[]}; S.expenses={u1:[],u2:[]}; S.insts={u1:[],u2:[]}
-  S.instPays=[]; S.goals=[]; S.todos=[]; S.wishlist={u1:[],u2:[]}; S.schedule={u1:[],u2:[]}; S.accounts=[]; S.walletSubs=[]; S.savingsCats={u1:[],u2:[]}
+  S.instPays=[]; S.goals=[]; S.dateBudget={cats:[],expenses:[],funds:[]}; S.todos=[]; S.wishlist={u1:[],u2:[]}; S.schedule={u1:[],u2:[]}; S.accounts=[]; S.walletSubs=[]; S.savingsCats={u1:[],u2:[]}
 }
 
 // Wraps a Supabase call so it always resolves (never rejects):
@@ -4795,8 +5511,10 @@ function initPetals(){
 }
 // Re-init petals when theme toggles (already called via toggleTheme → renderPage)
 const _origToggleTheme=toggleTheme
-// Note: toggleTheme is already defined above; petals reinit on re-render handled inline</script>
+// Note: toggleTheme is already defined above; petals reinit on re-render handled inline
+</script>
 
+<!-- ═══════════ AUTH OVERLAY ═══════════ -->
 <div id="authOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#fdf0f4 0%,#f4d5e2 50%,#fae6ed 100%);align-items:center;justify-content:center;padding:16px">
   <div style="width:100%;max-width:400px">
     <!-- Logo + title -->
@@ -4852,10 +5570,6 @@ const _origToggleTheme=toggleTheme
     </div>
   </div>
 </div>
-
-</body>
-</html>
-
 
 </body>
 </html>
