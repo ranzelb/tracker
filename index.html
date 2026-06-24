@@ -1497,13 +1497,12 @@ tbody tr:hover td{background:var(--bg3)}
 <!-- Add/Edit Savings -->
 <!-- ══════════ DATE BUDGET MODALS ══════════ -->
 
-<!-- Set Deadline modal (replaces old Period modal) -->
+<!-- Set Period modal -->
 <div class="overlay" id="m-datePeriod" style="display:none" onclick="obg(event,'m-datePeriod')">
   <div class="modal" style="max-width:420px">
     <div class="mhd"><div class="mtitle">⏱️ Set Budget Deadline</div><button class="mclose" onclick="cm('m-datePeriod')">✕</button></div>
     <div class="mbody">
       <div class="fg"><label>Start Date</label><input type="date" id="dp-start"/></div>
-      <!-- Deadline type toggle -->
       <div class="fg" style="margin-bottom:6px">
         <label>Deadline Type</label>
         <div class="pm-group" id="dp-type-group" style="margin-top:6px">
@@ -1512,18 +1511,16 @@ tbody tr:hover td{background:var(--bg3)}
           <div class="pm-btn" data-dtype="none" onclick="selectDeadlineType('none')">∞ No Deadline</div>
         </div>
       </div>
-      <!-- Duration input -->
       <div class="fg" id="dp-duration-wrap">
         <label>Duration (days)</label>
         <input type="number" id="dp-days" min="1" value="30" placeholder="e.g. 30"/>
       </div>
-      <!-- Specific date input -->
       <div class="fg" id="dp-date-wrap" style="display:none">
         <label>End Date (Deadline)</label>
         <input type="date" id="dp-end"/>
       </div>
       <div style="background:rgba(233,30,140,.08);border:1.5px solid rgba(233,30,140,.2);border-radius:10px;padding:12px;font-size:12px;color:var(--txt2);margin-top:8px">
-        💡 When the deadline passes, the budget is automatically archived to History and a fresh period starts.
+        💡 When the deadline passes the budget auto-archives to History and a fresh period starts. Your data is always preserved.
       </div>
       <div class="err" id="dp-err" style="display:none"></div>
     </div>
@@ -3209,21 +3206,22 @@ const DB_DEFAULT_CATS=[
 // Init S.dateBudget from localStorage on load
 ;(function(){
   try{
-    const raw=localStorage.getItem('rk_db_v1')
+    var raw=localStorage.getItem('rk_db_v1')
     if(raw) S.dateBudget=JSON.parse(raw)
   }catch(e){}
-  if(!S.dateBudget) S.dateBudget={customCats:[],overrides:{},expenses:[],funds:[],hidden:[]}
+  if(!S.dateBudget) S.dateBudget={customCats:[],overrides:{},expenses:[],funds:[],hidden:[],history:[]}
   if(!S.dateBudget.customCats) S.dateBudget.customCats=[]
   if(!S.dateBudget.overrides)  S.dateBudget.overrides={}
   if(!S.dateBudget.expenses)   S.dateBudget.expenses=[]
   if(!S.dateBudget.funds)      S.dateBudget.funds=[]
   if(!S.dateBudget.hidden)     S.dateBudget.hidden=[]
-  // Migrate old period format (had 'name' + 'end' fields, no deadlineType)
+  if(!S.dateBudget.history)    S.dateBudget.history=[]
+  // Migrate old period format (had 'name' field, no deadlineType)
   var op=S.dateBudget.period
-  if(op&&!op.deadlineType){
-    if(op.end) op.deadlineType='date'
-    else op.deadlineType='none'
-    // start was stored correctly already
+  if(op && !op.deadlineType){
+    op.deadlineType = op.end ? 'date' : 'none'
+    op.days = null
+    // keep op.start and op.end as-is
   }
 })()
 
@@ -3487,7 +3485,8 @@ function renderDateBudget(){
   if(!S.dateBudget.funds)      S.dateBudget.funds=[]
   if(!S.dateBudget.hidden)     S.dateBudget.hidden=[]
   if(!S.dateBudget.history)    S.dateBudget.history=[]
-  // Auto-archive if deadline passed, then refresh UI
+
+  // Check if deadline has passed → auto-archive, then redraw
   dbCheckExpired().then(function(){
     dbRefreshPeriodTitle()
     dbRenderHistory()
@@ -3499,12 +3498,14 @@ function _renderDateBudgetBody(){
   var total=dbTotalFunds(), spent=dbTotalSpent(), rem=Math.max(0,total-spent)
   var cats=dbGetCats()
 
+  // 4th stat card: days remaining
+  var p4=dbGetPeriod(), endDate4=dbCalcEndDate(p4)
+  var dlDays4 = endDate4 ? Math.max(0,Math.ceil((new Date(endDate4+'T23:59:59')-new Date())/864e5)) : null
+  var dlLabel4 = dlDays4===null ? 'No deadline' : dlDays4===0 ? 'Expired' : dlDays4+' days left'
+  var dlClass4 = dlDays4!==null && dlDays4<=5 ? 'dd' : 'du'
+
   // Stats
   var se=document.getElementById('db-stats')
-  var p4=dbGetPeriod(), endDate4=dbCalcEndDate(p4)
-  var dlDays4=endDate4?Math.max(0,Math.ceil((new Date(endDate4+'T23:59:59')-new Date())/864e5)):null
-  var dlLabel4=dlDays4===null?'No deadline':dlDays4+' days left'
-  var dlDelta4=dlDays4===null?'du':(dlDays4<=5?'dd':'du')
   if(se) se.innerHTML=
     '<div class="sc" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0);border:1.5px solid #f48fb1">'+
       '<div class="sc-ico">💰</div><div class="sc-lbl" style="color:#880e4f">Total Funds</div>'+
@@ -3521,7 +3522,7 @@ function _renderDateBudgetBody(){
     '<div class="sc" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0);border:1.5px solid #f48fb1">'+
       '<div class="sc-ico">⏱️</div><div class="sc-lbl" style="color:#880e4f">Deadline</div>'+
       '<div class="sc-val" style="color:#c2185b">'+(dlDays4===null?'∞':dlDays4)+'</div>'+
-      '<span class="sdelta '+dlDelta4+'">'+dlLabel4+'</span></div>'
+      '<span class="sdelta '+dlClass4+'">'+dlLabel4+'</span></div>'
 
   // Category cards — using template literals exactly like renderISavings does
   var ce=document.getElementById('db-cats-list')
@@ -3658,7 +3659,7 @@ function _renderDateBudgetBody(){
   }
 }
 
-// ── PERIOD / HISTORY / EDIT FUND ────────────────────────────
+// ── PERIOD / DEADLINE / HISTORY / EDIT FUND ─────────────────
 
 function dbGetPeriod(){
   return S.dateBudget.period||null
@@ -3667,24 +3668,189 @@ function dbGetHistory(){
   return S.dateBudget.history||[]
 }
 
-// ── Deadline type selector ────────────────────────────────────
-function selectDeadlineType(dtype){
-  document.querySelectorAll('#dp-type-group .pm-btn').forEach(function(b){
-    b.classList.toggle('sel',b.dataset.dtype===dtype)
-  })
-  document.getElementById('dp-duration-wrap').style.display=dtype==='duration'?'block':'none'
-  document.getElementById('dp-date-wrap').style.display=dtype==='date'?'block':'none'
-}
-
-// Derive end_date from period + deadline settings
+// ── Helper: compute the end date from period settings ────────
 function dbCalcEndDate(p){
   if(!p) return null
   if(p.deadlineType==='date') return p.end||null
-  if(p.deadlineType==='duration'&&p.days&&p.start) return addD(p.start, p.days-1)
+  if(p.deadlineType==='duration' && p.days && p.start) return addD(p.start, parseInt(p.days)-1)
   return null
 }
 
-// Check if current period has expired and auto-archive if so
+// ── Deadline type toggle UI ──────────────────────────────────
+function selectDeadlineType(dtype){
+  document.querySelectorAll('#dp-type-group .pm-btn').forEach(function(b){
+    b.classList.toggle('sel', b.dataset.dtype===dtype)
+  })
+  var durWrap=document.getElementById('dp-duration-wrap')
+  var dateWrap=document.getElementById('dp-date-wrap')
+  if(durWrap)  durWrap.style.display  = dtype==='duration' ? 'block' : 'none'
+  if(dateWrap) dateWrap.style.display = dtype==='date'     ? 'block' : 'none'
+}
+
+// ── Open Deadline modal ──────────────────────────────────────
+function openDateDeadline(){
+  var p=dbGetPeriod()||{}
+  var dtype=p.deadlineType||'duration'
+  var startEl=document.getElementById('dp-start')
+  var daysEl=document.getElementById('dp-days')
+  var endEl=document.getElementById('dp-end')
+  var errEl=document.getElementById('dp-err')
+  var archBtn=document.getElementById('dp-archive-btn')
+  if(startEl) startEl.value=p.start||tod()
+  if(daysEl)  daysEl.value=p.days||30
+  if(endEl)   endEl.value=p.end||''
+  if(errEl)   errEl.style.display='none'
+  selectDeadlineType(dtype)
+  // Show Archive Now only if there is active data
+  var hasData=(S.dateBudget.funds||[]).length>0||(S.dateBudget.expenses||[]).length>0
+  if(archBtn) archBtn.style.display=hasData?'inline-flex':'none'
+  document.getElementById('m-datePeriod').style.display='flex'
+}
+// Legacy alias — keeps any old saved onclick handlers working
+function openDatePeriod(){ openDateDeadline() }
+
+// ── Save deadline ────────────────────────────────────────────
+async function saveDateDeadline(){
+  var start=(document.getElementById('dp-start').value||tod()).trim()
+  var selBtn=document.querySelector('#dp-type-group .pm-btn.sel')
+  var dtype=selBtn ? selBtn.dataset.dtype : 'duration'
+  var days=parseInt(document.getElementById('dp-days').value)||30
+  var endDate=(document.getElementById('dp-end').value||'').trim()
+  var errEl=document.getElementById('dp-err')
+
+  // Validate
+  if(dtype==='duration' && (!days||days<1)){
+    errEl.textContent='Enter a duration in days (minimum 1)'
+    errEl.style.display='block'
+    return
+  }
+  if(dtype==='date' && !endDate){
+    errEl.textContent='Pick a specific end date'
+    errEl.style.display='block'
+    return
+  }
+  errEl.style.display='none'
+
+  // Build / update period object
+  if(!S.dateBudget.period) S.dateBudget.period={}
+  if(!S.dateBudget.period.id) S.dateBudget.period.id=dbUid()
+  S.dateBudget.period.start        = S.dateBudget.period.start || start
+  S.dateBudget.period.deadlineType = dtype
+  S.dateBudget.period.days         = dtype==='duration' ? days : null
+  S.dateBudget.period.end          = dtype==='date'     ? endDate : ''
+
+  var computedEnd = dbCalcEndDate(S.dateBudget.period)
+
+  // Persist locally immediately so UI updates even if Supabase is slow
+  dbSave()
+
+  // Sync to Supabase
+  if(SB_READY && AU_SB_ID){
+    var sbPayload={
+      id:            S.dateBudget.period.id,
+      user_id:       AU_SB_ID,
+      name:          S.dateBudget.period.start,   // use start date as name
+      start_date:    S.dateBudget.period.start,
+      end_date:      computedEnd || null,
+      duration_days: dtype==='duration' ? days : null,
+      deadline_type: dtype,
+      is_active:     true
+    }
+    var upsertRes = await _sb.from('date_budget_periods').upsert(sbPayload)
+    if(upsertRes.error){
+      console.error('date_budget_periods upsert error:', upsertRes.error)
+      // Still proceed — data saved locally
+    }
+  }
+
+  cm('m-datePeriod')
+  var label = dtype==='none' ? 'No deadline'
+             : dtype==='duration' ? days+'-day cycle (ends '+fmtD(computedEnd)+')'
+             : 'Deadline: '+fmtD(endDate)
+  toast('Deadline saved! '+label+' ⏱️')
+  dbRefreshPeriodTitle()
+  renderDateBudget()
+}
+
+// ── Archive current period now (manual) ─────────────────────
+async function archiveDateBudgetNow(){
+  var p=dbGetPeriod()
+  if(!p){cm('m-datePeriod');return}
+  var label=p.start?fmtD(p.start):tod()
+  if(!confirm('Archive the current date budget to History and start a fresh period?\n\nAll funds and expenses will be archived. Categories are kept.')) return
+  cm('m-datePeriod')
+  await dbDoArchive(p, true)
+  dbRefreshPeriodTitle()
+  dbRenderHistory()
+  renderDateBudget()
+}
+
+// ── Core archive logic ───────────────────────────────────────
+async function dbDoArchive(p, showToast){
+  if(!S.dateBudget.history) S.dateBudget.history=[]
+  var endDate=dbCalcEndDate(p)
+  var periodLabel=p.start ? fmtD(p.start) : 'Period'
+  if(endDate) periodLabel += ' → '+fmtD(endDate)
+  var snapshot={
+    id:          dbUid(),
+    name:        periodLabel,
+    start:       p.start||tod(),
+    end:         endDate||'',
+    archivedAt:  tod(),
+    totalFunds:  dbTotalFunds(),
+    totalSpent:  dbTotalSpent(),
+    funds:       (S.dateBudget.funds||[]).length,
+    expenses:    (S.dateBudget.expenses||[]).length
+  }
+  S.dateBudget.history.push(snapshot)
+  S.dateBudget.funds=[]
+  S.dateBudget.expenses=[]
+  // Fresh period — preserve deadline type and days
+  S.dateBudget.period={
+    id:           dbUid(),
+    start:        tod(),
+    deadlineType: p.deadlineType||'duration',
+    days:         p.days||30,
+    end:          ''
+  }
+  dbSave()
+
+  if(SB_READY && AU_SB_ID){
+    await _sb.from('date_budget_history').insert({
+      id:           snapshot.id,
+      user_id:      AU_SB_ID,
+      period_name:  snapshot.name,
+      start_date:   snapshot.start,
+      end_date:     snapshot.end||null,
+      archived_at:  snapshot.archivedAt,
+      total_funds:  snapshot.totalFunds,
+      total_spent:  snapshot.totalSpent
+    }).catch(function(e){ console.error('archive insert error',e) })
+
+    // Deactivate old period row
+    await _sb.from('date_budget_periods').update({is_active:false})
+      .eq('user_id',AU_SB_ID).eq('is_active',true).catch(function(){})
+
+    // Insert fresh period row
+    var newEnd=dbCalcEndDate(S.dateBudget.period)
+    await _sb.from('date_budget_periods').insert({
+      id:            S.dateBudget.period.id,
+      user_id:       AU_SB_ID,
+      name:          tod(),
+      start_date:    tod(),
+      end_date:      newEnd||null,
+      duration_days: S.dateBudget.period.days||null,
+      deadline_type: S.dateBudget.period.deadlineType,
+      is_active:     true
+    }).catch(function(e){ console.error('new period insert error',e) })
+
+    await _sb.from('date_budget_funds').delete().eq('user_id',AU_SB_ID).catch(function(){})
+    await _sb.from('date_budget_expenses').delete().eq('user_id',AU_SB_ID).catch(function(){})
+  }
+  if(showToast) toast('Budget archived! Fresh period started 🎉')
+}
+
+// ── Auto-expire check (called on every renderDateBudget) ─────
 async function dbCheckExpired(){
   var p=dbGetPeriod()
   if(!p||!p.start) return
@@ -3692,62 +3858,11 @@ async function dbCheckExpired(){
   if(!endDate) return
   var now=new Date(), endD=new Date(endDate+'T23:59:59')
   if(now>endD){
-    // Auto-archive silently
     await dbDoArchive(p, false)
   }
 }
 
-// Core archive function — shared by auto-expire and manual archive
-async function dbDoArchive(p, showPrompt){
-  if(!S.dateBudget.history) S.dateBudget.history=[]
-  var periodLabel=p.start?fmtD(p.start):'?'
-  var snapshot={
-    id:dbUid(),
-    name:periodLabel+(p.end?' → '+fmtD(p.end):''),
-    start:p.start,
-    end:dbCalcEndDate(p),
-    archivedAt:tod(),
-    totalFunds:dbTotalFunds(),
-    totalSpent:dbTotalSpent(),
-    funds:(S.dateBudget.funds||[]).length,
-    expenses:(S.dateBudget.expenses||[]).length
-  }
-  S.dateBudget.history.push(snapshot)
-  // Reset active data (keep categories)
-  S.dateBudget.funds=[]
-  S.dateBudget.expenses=[]
-  // Start a fresh period from today, preserve deadline settings
-  S.dateBudget.period={
-    id:dbUid(),
-    start:tod(),
-    deadlineType:p.deadlineType||'duration',
-    days:p.days||30,
-    end:''
-  }
-  dbSave()
-  // Sync to Supabase
-  if(SB_READY&&AU_SB_ID){
-    await _sb.from('date_budget_history').insert({
-      id:snapshot.id,user_id:AU_SB_ID,period_name:snapshot.name,
-      start_date:snapshot.start,end_date:snapshot.end||null,
-      archived_at:snapshot.archivedAt,total_funds:snapshot.totalFunds,
-      total_spent:snapshot.totalSpent
-    }).catch(function(){})
-    await _sb.from('date_budget_periods').upsert({
-      id:S.dateBudget.period.id,user_id:AU_SB_ID,
-      name:tod(),start_date:tod(),
-      end_date:dbCalcEndDate(S.dateBudget.period)||null,
-      duration_days:S.dateBudget.period.days||null,
-      deadline_type:S.dateBudget.period.deadlineType||'duration',
-      is_active:true
-    }).catch(function(){})
-    await _sb.from('date_budget_funds').delete().eq('user_id',AU_SB_ID).catch(function(){})
-    await _sb.from('date_budget_expenses').delete().eq('user_id',AU_SB_ID).catch(function(){})
-  }
-  if(showPrompt) toast('Budget archived and fresh period started! 🎉')
-}
-
-// Update period subtitle and deadline chip
+// ── Refresh the period chip + subtitle ──────────────────────
 function dbRefreshPeriodTitle(){
   var p=dbGetPeriod()
   var titleEl=document.getElementById('db-period-title')
@@ -3762,7 +3877,7 @@ function dbRefreshPeriodTitle(){
   var endDate=dbCalcEndDate(p)
   if(subEl){
     if(endDate) subEl.textContent='Started '+fmtD(p.start)+' · Deadline: '+fmtD(endDate)
-    else subEl.textContent='Started '+fmtD(p.start)+' · No deadline'
+    else        subEl.textContent='Started '+fmtD(p.start)+' · No deadline set'
   }
   if(!chipEl) return
   var total=dbTotalFunds(), spent=dbTotalSpent(), rem=Math.max(0,total-spent)
@@ -3777,37 +3892,39 @@ function dbRefreshPeriodTitle(){
     var dailyAvg=elapsed>0?spent/elapsed:0
     var totalDays=p.start?Math.max(1,Math.ceil((endD-startD)/864e5)):30
     var proj=Math.round(dailyAvg*totalDays)
-    var daysLabel=p.deadlineType==='duration'&&p.days?(p.days+'-day cycle'):(fmtD(p.start)+' → '+fmtD(endDate))
+    var daysLabel=p.deadlineType==='duration'&&p.days
+      ? p.days+'-day cycle'
+      : fmtD(p.start)+' → '+fmtD(endDate)
     chipEl.innerHTML=
-      '<div class="cdchip '+(urg?'urg':'')+'" style="margin-bottom:14px">'+
-        '<div class="cd-num" style="'+(urg?'color:var(--danger)':'color:var(--pink)')+'">'+dl+'</div>'+
-        '<div class="cd-txt">'+
-          '<strong style="'+(urg?'color:var(--danger)':'')+'">days remaining · '+esc(daysLabel)+'</strong><br>'+
-          '<span style="font-size:11px">Daily avg: '+P(dailyAvg)+'/day · Projected: '+P(proj)+'</span>'+
-          (dl===0?'<br><span style="color:var(--danger);font-weight:700;font-size:12px">⚠️ Deadline reached — archiving automatically on next open</span>':'')
-        +'</div>'+
-      '</div>'+
-      '<div class="card card-sm" style="margin-bottom:14px">'+
-        '<div class="chd" style="margin-bottom:10px">'+
-          '<span class="ctitle">💑 Date Budget Progress</span>'+
-          '<span class="badge '+(bp>85?'bd':'ba')+'">'+bp+'% used</span>'+
-        '</div>'+
-        '<div class="pw" style="height:12px"><div class="pf '+(bp>85?'pfd':'pfp')+'" style="width:'+bp+'%"></div></div>'+
-        '<div class="pmeta"><span>'+P(spent)+' spent</span><span>'+P(rem)+' remaining</span></div>'+
-      '</div>'
-  }else{
+      '<div class="cdchip '+(urg?'urg':'')+'" style="margin-bottom:14px">'
+        +'<div class="cd-num" style="'+(urg?'color:var(--danger)':'color:var(--pink)')+'">'+dl+'</div>'
+        +'<div class="cd-txt">'
+          +'<strong style="'+(urg?'color:var(--danger)':'')+'">days remaining · '+esc(daysLabel)+'</strong><br>'
+          +'<span style="font-size:11px">Daily avg: '+P(dailyAvg)+'/day · Projected: '+P(proj)+'</span>'
+          +(dl===0?'<br><span style="color:var(--danger);font-weight:700;font-size:12px">⚠️ Deadline reached — archiving on next open</span>':'')
+        +'</div>'
+      +'</div>'
+      +'<div class="card card-sm" style="margin-bottom:14px">'
+        +'<div class="chd" style="margin-bottom:10px">'
+          +'<span class="ctitle">💑 Date Budget Progress</span>'
+          +'<span class="badge '+(bp>85?'bd':'ba')+'">'+bp+'% used</span>'
+        +'</div>'
+        +'<div class="pw" style="height:12px"><div class="pf '+(bp>85?'pfd':'pfp')+'" style="width:'+bp+'%"></div></div>'
+        +'<div class="pmeta"><span>'+P(spent)+' spent</span><span>'+P(rem)+' remaining</span></div>'
+      +'</div>'
+  } else {
     chipEl.innerHTML=
-      '<div class="cdchip" style="margin-bottom:14px">'+
-        '<div class="cd-num">∞</div>'+
-        '<div class="cd-txt">'+
-          '<strong>No deadline</strong><br>'+
-          '<span style="font-size:11px">Started '+fmtD(p.start||tod())+' · Click ⏱️ Deadline to set one</span>'+
-        '</div>'+
-      '</div>'
+      '<div class="cdchip" style="margin-bottom:14px">'
+        +'<div class="cd-num">∞</div>'
+        +'<div class="cd-txt">'
+          +'<strong>No deadline · Started '+fmtD(p.start)+'</strong><br>'
+          +'<span style="font-size:11px">Click ⏱️ Deadline to set a deadline</span>'
+        +'</div>'
+      +'</div>'
   }
 }
 
-// Render history section
+// ── Render history section ───────────────────────────────────
 function dbRenderHistory(){
   var hist=dbGetHistory()
   var cntEl=document.getElementById('db-history-cnt')
@@ -3823,7 +3940,7 @@ function dbRenderHistory(){
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:4px;margin-bottom:8px">'
         +'<div><div style="font-size:14px;font-weight:700;color:var(--pink)">'+esc(h.name||'Archived Period')+'</div>'
         +'<div style="font-size:11px;color:var(--txt3)">'+(h.start?fmtD(h.start):'')+(h.end?' → '+fmtD(h.end):'')+'</div></div>'
-        +'<span style="font-size:11px;color:var(--txt3);white-space:nowrap">📦 '+fmtD(h.archivedAt||h.end||'')+'</span>'
+        +'<span style="font-size:11px;color:var(--txt3);white-space:nowrap">📦 '+fmtD(h.archivedAt||h.end||tod())+'</span>'
       +'</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'
         +'<div style="flex:1;min-width:80px;background:var(--bg3);border-radius:8px;padding:8px;text-align:center">'
@@ -3842,77 +3959,6 @@ function dbRenderHistory(){
     +'</div>'
   }).join('')
 }
-
-// Open Deadline modal
-function openDateDeadline(){
-  var p=dbGetPeriod()||{}
-  var dtype=p.deadlineType||'duration'
-  document.getElementById('dp-start').value=p.start||tod()
-  document.getElementById('dp-days').value=p.days||30
-  document.getElementById('dp-end').value=p.end||''
-  document.getElementById('dp-err').style.display='none'
-  selectDeadlineType(dtype)
-  // Show Archive button only if a period has data
-  var archBtn=document.getElementById('dp-archive-btn')
-  var hasData=(S.dateBudget.funds||[]).length>0||(S.dateBudget.expenses||[]).length>0
-  if(archBtn) archBtn.style.display=hasData?'inline-flex':'none'
-  document.getElementById('m-datePeriod').style.display='flex'
-}
-
-// Keep old name as alias for any lingering calls
-function openDatePeriod(){ openDateDeadline() }
-
-// Save deadline settings
-async function saveDateDeadline(){
-  var start=document.getElementById('dp-start').value||tod()
-  var selBtn=document.querySelector('#dp-type-group .pm-btn.sel')
-  var dtype=selBtn?selBtn.dataset.dtype:'duration'
-  var days=parseInt(document.getElementById('dp-days').value)||30
-  var endDate=document.getElementById('dp-end').value||''
-  var errEl=document.getElementById('dp-err')
-  if(dtype==='duration'&&(!days||days<1)){errEl.textContent='Enter a duration in days';errEl.style.display='block';return}
-  if(dtype==='date'&&!endDate){errEl.textContent='Pick a specific end date';errEl.style.display='block';return}
-  if(!S.dateBudget.period) S.dateBudget.period={}
-  S.dateBudget.period.start=S.dateBudget.period.start||start
-  S.dateBudget.period.deadlineType=dtype
-  S.dateBudget.period.days=dtype==='duration'?days:null
-  S.dateBudget.period.end=dtype==='date'?endDate:''
-  if(!S.dateBudget.period.id) S.dateBudget.period.id=dbUid()
-  dbSave()
-  var endComputed=dbCalcEndDate(S.dateBudget.period)
-  if(SB_READY&&AU_SB_ID){
-    await _sb.from('date_budget_periods').upsert({
-      id:S.dateBudget.period.id,
-      user_id:AU_SB_ID,
-      name:S.dateBudget.period.start,
-      start_date:S.dateBudget.period.start,
-      end_date:endComputed||null,
-      duration_days:S.dateBudget.period.days||null,
-      deadline_type:dtype,
-      is_active:true
-    }).catch(function(){})
-  }
-  cm('m-datePeriod')
-  var label=dtype==='none'?'No deadline set':dtype==='duration'?days+'-day cycle':'Deadline: '+fmtD(endComputed)
-  toast('Deadline saved! '+label+' ⏱️')
-  dbRefreshPeriodTitle()
-  renderDateBudget()
-}
-
-// Manual "Archive Now" button in the modal
-async function archiveDateBudgetNow(){
-  var p=dbGetPeriod()
-  if(!p){cm('m-datePeriod');return}
-  if(!confirm('Archive the current date budget to History and start a fresh period?\n\nAll funds and expenses will be archived. Categories are kept.')) return
-  cm('m-datePeriod')
-  await dbDoArchive(p,true)
-  dbRefreshPeriodTitle()
-  dbRenderHistory()
-  renderDateBudget()
-}
-
-// Legacy alias kept for any old Supabase load code paths
-async function resetDatePeriod(){ await archiveDateBudgetNow() }
 
 // Edit Fund entry
 function openEditFund(fid){
@@ -3992,17 +4038,17 @@ async function loadDateBudgetFromSB(){
       var pr=await _sb.from('date_budget_periods').select('*').eq('is_active',true).order('created_at',{ascending:false}).limit(1)
       if(!pr.error&&pr.data&&pr.data.length){
         var pd=pr.data[0]
-        // Support both new (deadline_type) and legacy (name) period format
-        var dtype=pd.deadline_type||(pd.end_date?'date':(pd.duration_days?'duration':'none'))
+        // Support both new (deadline_type col) and legacy (inferred from end_date) formats
+        var dtype=pd.deadline_type||(pd.duration_days?'duration':pd.end_date?'date':'none')
         S.dateBudget.period={
-          id:pd.id,
-          start:pd.start_date,
-          deadlineType:dtype,
-          days:pd.duration_days||null,
-          end:pd.end_date||''
+          id:           pd.id,
+          start:        pd.start_date,
+          deadlineType: dtype,
+          days:         pd.duration_days||null,
+          end:          pd.end_date||''
         }
       }
-    }catch(e){}
+    }catch(e){ console.error('load period error',e) }
     dbSave()
     console.log('Date budget loaded:',S.dateBudget.customCats.length,'cats,',S.dateBudget.expenses.length,'expenses,',S.dateBudget.funds.length,'funds')
   }catch(err){console.error('loadDateBudgetFromSB error:',err)}
