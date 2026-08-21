@@ -972,6 +972,21 @@ tbody tr:hover td{background:var(--bg3)}
         </div>
       </div>
     </div>
+    <div class="fg" id="savcat-connect-wrap" style="margin-top:2px">
+      <label>Fund Source</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+        <button type="button" id="savcat-connect-no" class="btn btn-p" onclick="setSavCatConnect(false)">⚪ Don't Connect</button>
+        <button type="button" id="savcat-connect-yes" class="btn btn-g" onclick="setSavCatConnect(true)">🟢 Connect to My Accounts</button>
+      </div>
+      <div id="savcat-connect-detail" style="display:none;margin-top:10px">
+        <div class="fg" style="margin-bottom:8px"><label>Account</label>
+          <select id="savcat-acct" onchange="renderSavCatConnectPreview()"></select>
+        </div>
+        <div class="fg" style="margin-bottom:8px"><label>Initial Amount to Allocate (₱, optional)</label><input id="savcat-initamt" type="number" min="0" step="0.01" placeholder="0" oninput="renderSavCatConnectPreview()"/></div>
+        <div id="savcat-connect-preview" style="font-size:12px;color:var(--txt2);background:var(--bg3);border-radius:9px;padding:9px 11px;line-height:1.6"></div>
+      </div>
+      <div id="savcat-connect-noaccts" style="display:none;font-size:11px;color:var(--txt3);margin-top:6px">You don't have any accounts yet — create one in <strong>My Accounts</strong> first to connect funds.</div>
+    </div>
     <div class="err" id="savcat-err"></div>
     <div class="mfoot"><button class="btn" onclick="cm('m-addSavCat')">Cancel</button><button class="btn btn-p" onclick="saveSavCat(event)">Create</button></div>
   </div>
@@ -1185,6 +1200,9 @@ tbody tr:hover td{background:var(--bg3)}
     <div id="db-fund-list"></div>
   </div>
 
+  <!-- Budget / Fund change report history (v6) -->
+  <div style="margin-top:14px" id="db-report-history"></div>
+
   <!-- Monthly Budget History -->
   <div class="card" style="margin-top:14px" id="db-history-card">
     <div class="chd">
@@ -1395,7 +1413,7 @@ tbody tr:hover td{background:var(--bg3)}
   <div class="modal"><div class="mtitle">🐱 New Budget Cycle</div>
     <input type="hidden" id="nb-eid"/>
     <div class="fg"><label>Budget Title</label><input id="nb-title" placeholder="e.g. Food, Bills, Needs"/></div>
-    <div class="fg"><label>Amount (₱)</label><input id="nb-amt" type="number" min="1" step="0.01" placeholder="5000"/></div>
+    <div class="fg"><label>Amount (₱)</label><input id="nb-amt" type="number" min="1" step="0.01" placeholder="5000" oninput="renderBudgetConnectPreview()"/></div>
     <div class="frow">
       <div class="fg"><label>Start Date</label><input id="nb-start" type="date"/></div>
       <div class="fg" id="nb-days-wrap"><label>Duration (days)</label><input id="nb-days" type="number" min="1" value="30"/></div>
@@ -1410,6 +1428,20 @@ tbody tr:hover td{background:var(--bg3)}
       <select id="nb-type"><option value="📋 General">📋 General</option><option value="🍜 Food">🍜 Food</option><option value="📱 Bills">📱 Bills</option><option value="🎮 Leisure">🎮 Leisure</option><option value="🛒 Needs">🛒 Needs</option><option value="💊 Health">💊 Health</option><option value="🚗 Transport">🚗 Transport</option><option value="💰 Savings">💰 Savings</option></select>
     </div>
     <div class="fg"><label>Notes</label><input id="nb-notes" placeholder="Optional notes"/></div>
+    <div class="fg" id="nb-connect-wrap" style="margin-top:2px">
+      <label>Fund Source</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+        <button type="button" id="nb-connect-no" class="btn btn-p" onclick="setBudgetConnect(false)">⚪ Don't Connect</button>
+        <button type="button" id="nb-connect-yes" class="btn btn-g" onclick="setBudgetConnect(true)">🟢 Connect to My Accounts</button>
+      </div>
+      <div id="nb-connect-detail" style="display:none;margin-top:10px">
+        <div class="fg" style="margin-bottom:8px"><label>Account</label>
+          <select id="nb-acct" onchange="renderBudgetConnectPreview()"></select>
+        </div>
+        <div id="nb-connect-preview" style="font-size:12px;color:var(--txt2);background:var(--bg3);border-radius:9px;padding:9px 11px;line-height:1.6"></div>
+      </div>
+      <div id="nb-connect-noaccts" style="display:none;font-size:11px;color:var(--txt3);margin-top:6px">You don't have any accounts yet — create one in <strong>My Accounts</strong> first to connect funds.</div>
+    </div>
     <div class="err" id="nb-err"></div>
     <div class="mfoot"><button class="btn" onclick="cm('m-newBudget')">Cancel</button><button class="btn btn-p" id="nb-save-btn" onclick="saveBudgetModal(event)">Create</button></div>
   </div>
@@ -1834,7 +1866,9 @@ let S={
   _histPage:0,_ipPage:0,_todoFilter:'all',_calDate:new Date(),
   _todoUser:'mine',_schedUser:'mine',_wishUser:'mine',
   // MONTHLY DATE BUDGET
-  dateBudget:{cats:[],expenses:[],funds:[],hiddenCats:[]}
+  dateBudget:{cats:[],expenses:[],funds:[],hiddenCats:[]},
+  // BUDGET / FUND CHANGE HISTORY (from budget_change_history table)
+  budgetHistory:[]
 }
 
 // ─── GETTERS ─────────────────────────────────────────────
@@ -2077,6 +2111,56 @@ function renderOV(){
 // ─── BUDGET PAGE ──────────────────────────────────────────
 let _actTab={mine:null,partner:null}
 
+// ─── BUDGET / FUND CHANGE HISTORY — reusable card (My Budget, Partner Budget, Monthly Date) ───
+let _histData={}
+function mkHistoryCard(idPrefix,items){
+  _histData[idPrefix]=items||[]
+  return `<div class="card" style="margin:0">
+    <div class="chd" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">
+      <span class="ctitle">🗂️ Report History</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select id="${idPrefix}-hf" onchange="renderBudgetHistoryList('${idPrefix}')" style="font-size:11px;padding:5px 8px;border-radius:8px">
+          <option value="all">All</option>
+          <option value="increased">Increased</option>
+          <option value="decreased">Decreased</option>
+          <option value="added_funds">Added Funds</option>
+          <option value="removed_funds">Removed Funds</option>
+          <option value="budget">Budget Changes</option>
+          <option value="fund">Fund Changes</option>
+        </select>
+        <select id="${idPrefix}-hs" onchange="renderBudgetHistoryList('${idPrefix}')" style="font-size:11px;padding:5px 8px;border-radius:8px">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+      </div>
+    </div>
+    <div id="${idPrefix}-hlist"></div>
+  </div>`
+}
+function renderBudgetHistoryList(idPrefix){
+  const items=_histData[idPrefix]||[]
+  const filter=document.getElementById(idPrefix+'-hf')?.value||'all'
+  const sort=document.getElementById(idPrefix+'-hs')?.value||'newest'
+  let filtered=items
+  if(filter==='budget')filtered=items.filter(h=>h.srcType==='budget')
+  else if(filter==='fund')filtered=items.filter(h=>h.srcType!=='budget')
+  else if(filter!=='all')filtered=items.filter(h=>h.changeType===filter)
+  filtered=[...filtered].sort((a,b)=>sort==='newest'?new Date(b.createdAt)-new Date(a.createdAt):new Date(a.createdAt)-new Date(b.createdAt))
+  const el=document.getElementById(idPrefix+'-hlist')
+  if(!el)return
+  if(filtered.length===0){el.innerHTML='<div class="empty" style="padding:18px"><div class="empty-ico">🗂️</div><p>No changes recorded yet</p></div>';return}
+  const labelMap={increased:'Budget Increased',decreased:'Budget Decreased',added_funds:'Funds Added',removed_funds:'Funds Removed',no_change:'No Change'}
+  el.innerHTML=filtered.slice(0,50).map(h=>{
+    const up=h.changeType==='increased'||h.changeType==='added_funds'
+    const down=h.changeType==='decreased'||h.changeType==='removed_funds'
+    const col=up?'var(--teal)':down?'var(--danger)':'var(--txt3)'
+    const icon=up?'🟢':down?'🔴':'⚪'
+    const dt=new Date(h.createdAt)
+    const dtStr=isNaN(dt)?'':dt.toLocaleDateString('en-PH',{month:'long',day:'numeric',year:'numeric'})+' • '+dt.toLocaleTimeString('en-PH',{hour:'numeric',minute:'2-digit'})
+    return `<div class="row"><div class="rico" style="background:${col}22">${icon}</div><div class="rinfo"><div class="rname">${labelMap[h.changeType]||h.changeType}</div><div class="rsub">${esc(h.label)} · ${P(h.prev)} → ${P(h.next)}<br>${dtStr}</div></div><div class="rright"><div class="ramt" style="color:${col}">${h.diff>=0?'+':''}${P(h.diff)}</div></div></div>`
+  }).join('')
+}
+
 function renderBP(scope){
   const uid=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
   const u=USERS[uid],isOwn=scope==='mine'
@@ -2137,7 +2221,8 @@ function renderBContent(scope,bid,isOwn){
       <div class="cd-txt"><strong>days remaining</strong><br><span style="font-size:11px">${fmtD(b.start)} → ${fmtD(b.end)} · Daily avg: ${P(dailyAvg)}/day · Projected: ${P(proj)}</span></div>
     </div>`:`<div class="cdchip"><div class="cd-num">∞</div><div class="cd-txt"><strong>No deadline</strong><br><span style="font-size:11px">Started ${fmtD(b.start)} · Daily avg: ${P(dailyAvg)}/day</span></div></div>`}
     <div class="card card-sm" style="margin-bottom:14px">
-      <div class="chd" style="margin-bottom:10px"><span class="ctitle">${b.type} ${esc(b.title)}</span><div style="display:flex;gap:6px;align-items:center"><span class="badge ${bp>85?'bd':'ba'}">${bp}% used</span>${isOwn?`<button class="btn btn-xs btn-o" onclick="openEditBudget('${scope}','${bid}')">✏️ Edit</button><button class="btn btn-xs btn-d" onclick="delConfirm('🗑️ Delete Budget','Delete &ldquo;${esc(b.title)}&rdquo; and all its expenses? This cannot be undone.',()=>delBudget('${scope}','${bid}'))">🗑️ Delete</button>`:''}</div></div>
+      <div class="chd" style="margin-bottom:10px"><span class="ctitle">${b.type} ${esc(b.title)}</span><div style="display:flex;gap:6px;align-items:center"><span class="badge ${bp>85?'bd':'ba'}">${bp}% used</span>${isOwn?`<button class="btn btn-xs btn-o" onclick="openEditBudget('${scope}','${bid}')">✏️ Edit</button><button class="btn btn-xs btn-d" onclick="delConfirm('🗑️ Delete Budget','Delete &ldquo;${esc(b.title)}&rdquo; and all its expenses?${b.connected?' Connected funds will be returned to My Accounts.':''} This cannot be undone.',()=>delBudget('${scope}','${bid}'))">🗑️ Delete</button>`:''}</div></div>
+      <div style="margin-bottom:8px"><span class="badge ${b.connected?'ba':'bn'}" title="${b.connected?'Deducted from '+(S.accounts.find(a=>a.id===b.acctId)?.name||'My Accounts'):'Not linked to My Accounts'}">${b.connected?'🟢 Connected to My Accounts':'⚪ Independent Funds'}</span></div>
       <div class="pw" style="height:12px"><div class="pf ${bp>85?'pfd':'pfp'}" style="width:${bp}%"></div></div>
       <div class="pmeta"><span>${P(b.spent)} spent</span><span>${P(rem)} left</span></div>
     </div>
@@ -2167,7 +2252,11 @@ function renderBContent(scope,bid,isOwn){
       <div class="card" style="margin:0"><div class="chd"><span class="ctitle">💸 Expenses</span>${isOwn?`<button class="btn btn-p btn-sm" onclick="openAddExp(event,'${scope}','${bid}')">+ Add</button>`:'<span style="font-size:11px;color:var(--txt3)">View only</span>'}</div>${expRows}</div>
       <div class="card" style="margin:0"><div class="chd"><span class="ctitle">📦 Installments</span>${isOwn?`<button class="btn btn-o btn-sm" onclick="openAddInst(event,'${uid}','${bid}')">+ Add</button>`:'<span class="badge bn">'+(insts.filter(i=>i.status==='active').length)+' active</span>'}</div>${instRows}</div>
     </div>
+    <div style="margin-top:14px">
+      ${mkHistoryCard(scope+'-bh-'+bid, (S.budgetHistory||[]).filter(h=>h.srcType==='budget'&&h.srcId===bid))}
+    </div>
   `
+  renderBudgetHistoryList(scope+'-bh-'+bid)
   // Draw charts
   setTimeout(()=>{
     const cc=CC()
@@ -2846,12 +2935,82 @@ function openModal(id,ctx){
     const sb=document.getElementById('nb-save-btn');if(sb)sb.textContent='Create'
     const ub=document.getElementById('nb-unlimited');if(ub){ub.checked=false}
     const dw=document.getElementById('nb-days-wrap');if(dw)dw.style.display='block'
+    populateAcctSelect('nb-acct')
+    setBudgetConnect(false)
   }
   document.getElementById(id).style.display='flex'
 }
 function cm(id){document.getElementById(id).style.display='none'}
 function obg(e,id){if(e.target.classList.contains('overlay'))cm(id)}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.overlay').forEach(m=>m.style.display='none')})
+
+// ─── MY ACCOUNTS — connection helpers (used by budget + savings modals) ───
+function acctBalance(a){
+  const txns=a.transactions||[]
+  const inc=txns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amt,0)
+  const exp=txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amt,0)
+  return (a.openingBalance||0)+inc-exp
+}
+function populateAcctSelect(selId){
+  const sel=document.getElementById(selId);if(!sel)return
+  sel.innerHTML=(S.accounts||[]).map(a=>`<option value="${a.id}">${a.type} ${esc(a.name)} — ${P(acctBalance(a))} available</option>`).join('')
+}
+
+let _nbConnect=false
+function setBudgetConnect(yes){
+  _nbConnect=yes
+  const yb=document.getElementById('nb-connect-yes'),nb=document.getElementById('nb-connect-no')
+  if(yb)yb.className=yes?'btn btn-p':'btn btn-g'
+  if(nb)nb.className=!yes?'btn btn-p':'btn btn-g'
+  const detail=document.getElementById('nb-connect-detail'),noaccts=document.getElementById('nb-connect-noaccts')
+  if(yes&&(S.accounts||[]).length===0){detail.style.display='none';noaccts.style.display='block'}
+  else{detail.style.display=yes?'block':'none';noaccts.style.display='none';if(yes)renderBudgetConnectPreview()}
+}
+function renderBudgetConnectPreview(){
+  const prev=document.getElementById('nb-connect-preview');if(!prev)return
+  const aid=document.getElementById('nb-acct')?.value
+  const acct=(S.accounts||[]).find(a=>a.id===aid)
+  const amt=parseFloat(document.getElementById('nb-amt')?.value)||0
+  if(!acct){prev.innerHTML='Select an account to preview the allocation.';return}
+  const bal=acctBalance(acct)
+  const eid=document.getElementById('nb-eid')?.value
+  const existing=eid?getBudget(eid):null
+  // Funds this same budget already holds in this account aren't "used up" when previewing an edit
+  const availBal=(existing&&existing.connected&&existing.acctId===aid)?bal+existing.allocated:bal
+  const remain=availBal-amt
+  prev.innerHTML=`Available Balance: <strong>${P(availBal)}</strong><br>Amount to Allocate: <strong>${P(amt)}</strong><br>Remaining Balance: <strong style="color:${remain<0?'var(--danger)':'var(--teal)'}">${P(Math.max(remain,remain))}</strong>`
+    +(remain<0?`<br><span style="color:var(--danger);font-weight:700">⚠️ Insufficient Funds — only ${P(availBal)} available in this account.</span>`:'')
+}
+
+let _savCatConnect=false
+function setSavCatConnect(yes){
+  _savCatConnect=yes
+  const yb=document.getElementById('savcat-connect-yes'),nb=document.getElementById('savcat-connect-no')
+  if(yb)yb.className=yes?'btn btn-p':'btn btn-g'
+  if(nb)nb.className=!yes?'btn btn-p':'btn btn-g'
+  const detail=document.getElementById('savcat-connect-detail'),noaccts=document.getElementById('savcat-connect-noaccts')
+  if(yes&&(S.accounts||[]).length===0){detail.style.display='none';noaccts.style.display='block'}
+  else{detail.style.display=yes?'block':'none';noaccts.style.display='none';if(yes)renderSavCatConnectPreview()}
+}
+function renderSavCatConnectPreview(){
+  const prev=document.getElementById('savcat-connect-preview');if(!prev)return
+  const aid=document.getElementById('savcat-acct')?.value
+  const acct=(S.accounts||[]).find(a=>a.id===aid)
+  const amt=parseFloat(document.getElementById('savcat-initamt')?.value)||0
+  if(!acct){prev.innerHTML='Select an account to preview the allocation.';return}
+  const bal=acctBalance(acct); const remain=bal-amt
+  prev.innerHTML=`Available Balance: <strong>${P(bal)}</strong><br>Amount to Allocate: <strong>${P(amt)}</strong><br>Remaining Balance: <strong style="color:${remain<0?'var(--danger)':'var(--teal)'}">${P(remain)}</strong>`
+    +(remain<0?`<br><span style="color:var(--danger);font-weight:700">⚠️ Insufficient Funds — only ${P(bal)} available in this account.</span>`:'')
+}
+
+// Friendly translation of the Postgres "insufficient_funds:" exception
+// raised by the v6 triggers, plus a generic DB-error fallback.
+function friendlyDbErr(error,fallback){
+  const msg=error?.message||''
+  const m=msg.match(/insufficient_funds:\s*([\d.]+)\s*available,\s*([\d.]+)\s*required/)
+  if(m)return `Insufficient Funds — you only have ${P(parseFloat(m[1]))} available, but this needs ${P(parseFloat(m[2]))}.`
+  return fallback+(msg?` (${msg})`:'')
+}
 
 function delConfirm(title,body,fn){
   document.getElementById('del-title').textContent=title
@@ -2876,16 +3035,21 @@ async function createBudget(e){
   const days=unlimited?null:parseInt(document.getElementById('nb-days').value)
   if(!title||!amt||!start){showErr('nb-err','Fill title, amount and start date');return}
   if(!unlimited&&(!days||days<1)){showErr('nb-err','Set a duration or check "No deadline"');return}
+  const connect=_nbConnect&&(S.accounts||[]).length>0
+  const acctId=connect?document.getElementById('nb-acct')?.value:null
+  if(connect&&!acctId){showErr('nb-err','Choose an account to connect to');return}
   const sbUserId=uid2==='u1'?AU_SB_ID:AU_PARTNER_ID
-  const localObj={id:uid(),uid:uid2,title,type,amt,spent:0,start,days:days||null,end:days?addD(start,days-1):null,status:'active',notes}
+  const localObj={id:uid(),uid:uid2,title,type,amt,spent:0,start,days:days||null,end:days?addD(start,days-1):null,status:'active',notes,connected:connect,acctId:connect?acctId:null,allocated:connect?amt:0}
   if(SB_READY&&sbUserId){
-    const dbRow={user_id:sbUserId,title,budget_type:type,amount:amt,start_date:start,end_date:days?addD(start,days-1):null,duration_days:days||null,status:'active',notes}
-    const saved=await sbCreateBudget(dbRow)
-    if(saved){localObj.id=saved.id}else{showErr('nb-err','Failed to save. Check Supabase connection.');return}
+    const dbRow={user_id:sbUserId,title,budget_type:type,amount:amt,start_date:start,end_date:days?addD(start,days-1):null,duration_days:days||null,status:'active',notes,connected_to_accounts:connect,account_id:connect?acctId:null}
+    const {data,error}=await _sb.from('budgets').insert(dbRow).select().single()
+    if(error){showErr('nb-err',friendlyDbErr(error,'Failed to save. Check Supabase connection.'));return}
+    if(data)localObj.id=data.id
   }
   if(!S.budgets[uid2])S.budgets[uid2]=[]
   S.budgets[uid2].push(localObj)
-  cm('m-newBudget');buildRepOptions();toast(`"${title}" budget created! 🐱`);renderPage(CUR)
+  cm('m-newBudget');buildRepOptions();toast(`"${title}" budget created! 🐱`)
+  if(connect)await loadAllDataFromSB(); else renderPage(CUR)
 }
 
 async function updateBudget(e,bid){
@@ -2900,17 +3064,23 @@ async function updateBudget(e,bid){
   if(!title){showErr('nb-err','Title is required');return}
   if(!unlimited&&(!daysRaw||daysRaw<1)){showErr('nb-err','Set a duration or check "No deadline"');return}
   const hasDays=!unlimited&&!!daysRaw&&daysRaw>0
-  // Update local state - properly handle deadline removal
-  b.title=title; b.amt=amt2; b.days=hasDays?daysRaw:null; b.type=type; b.notes=notes
-  b.end=hasDays?addD(b.start,daysRaw-1):null
-  // Update Supabase
+  const connect=_nbConnect&&(S.accounts||[]).length>0
+  const acctId=connect?document.getElementById('nb-acct')?.value:null
+  if(connect&&!acctId){showErr('nb-err','Choose an account to connect to');return}
+  const endDate=hasDays?addD(b.start,daysRaw-1):null
+  // Update Supabase first — the connection trigger validates funds and can reject
   if(SB_READY&&AU_SB_ID){
     const {error}=await _sb.from('budgets').update({
-      title,amount:amt2,duration_days:hasDays?daysRaw:null,end_date:hasDays?addD(b.start,daysRaw-1):null,budget_type:type,notes
+      title,amount:amt2,duration_days:hasDays?daysRaw:null,end_date:endDate,budget_type:type,notes,
+      connected_to_accounts:connect,account_id:connect?acctId:null
     }).eq('id',bid)
-    if(error){showErr('nb-err','Failed to save changes');return}
+    if(error){showErr('nb-err',friendlyDbErr(error,'Failed to save changes'));return}
   }
-  cm('m-newBudget');buildRepOptions();toast(`"${title}" budget updated! ✏️`);renderPage(CUR)
+  // Update local state - properly handle deadline removal
+  b.title=title; b.amt=amt2; b.days=hasDays?daysRaw:null; b.type=type; b.notes=notes
+  b.end=endDate; b.connected=connect; b.acctId=connect?acctId:null; b.allocated=connect?amt2:0
+  cm('m-newBudget');buildRepOptions();toast(`"${title}" budget updated! ✏️`)
+  await loadAllDataFromSB()
 }
 
 // Open the budget modal in edit mode
@@ -2933,19 +3103,24 @@ function openEditBudget(scope,bid){
   document.querySelector('#m-newBudget .mtitle').textContent='✏️ Edit Budget'
   document.getElementById('nb-save-btn').textContent='Save Changes'
   document.querySelectorAll('#m-newBudget .err').forEach(el=>el.style.display='none')
+  // Fund source
+  populateAcctSelect('nb-acct')
+  setBudgetConnect(!!b.connected)
+  if(b.connected&&b.acctId)document.getElementById('nb-acct').value=b.acctId
   document.getElementById('m-newBudget').style.display='flex'
 }
 
 async function delBudget(scope,bid){
   const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
   const b=getBudget(bid)
+  const wasConnected=b?.connected
   if(SB_READY&&AU_SB_ID){ await sbDeleteBudget(bid) }
   S.budgets[uid2]=(S.budgets[uid2]||[]).filter(x=>x.id!==bid)
   S.expenses[uid2]=(S.expenses[uid2]||[]).filter(e=>e.bid!==bid)
   _actTab[scope]=null
   buildRepOptions()
-  toast(`"${b?.title||'Budget'}" deleted 🗑️`)
-  renderPage(CUR)
+  toast(`"${b?.title||'Budget'}" deleted 🗑️${wasConnected?' — funds returned to My Accounts 💰':''}`)
+  if(wasConnected)await loadAllDataFromSB(); else renderPage(CUR)
 }
 
 // ─── EXPENSES ─────────────────────────────────────────────
@@ -3368,6 +3543,7 @@ async function saveDateCat(e){
         name:name,icon:icon,limit_amount:limit,color:color
       }).eq('id',eid)
       if(cup.error) console.error('cat update error:',cup.error)
+      await refreshBudgetHistory()
     }
     toast('Category updated ✏️')
   }else{
@@ -3654,6 +3830,19 @@ function _renderDateBudgetBody(){
         fle.appendChild(row)
       })
     }
+  }
+
+  // Report History (v6): all budget/limit/fund edits for the date budget
+  var dbCatIds=cats.map(function(c){return c.id})
+  var dbFundIds=(S.dateBudget.funds||[]).map(function(f){return f.id})
+  var dbHistItems=(S.budgetHistory||[]).filter(function(h){
+    return (h.srcType==='date_budget_category'&&dbCatIds.indexOf(h.srcId)>-1)
+        || (h.srcType==='date_budget_fund'&&dbFundIds.indexOf(h.srcId)>-1)
+  })
+  var rhEl=document.getElementById('db-report-history')
+  if(rhEl){
+    rhEl.innerHTML=mkHistoryCard('db-rh',dbHistItems)
+    renderBudgetHistoryList('db-rh')
   }
 }
 
@@ -4011,11 +4200,19 @@ async function saveEditFund(){
   }
   if(SB_READY&&AU_SB_ID){
     await _sb.from('date_budget_funds').update({amount:amt,funded_by:who,note:note||null,fund_date:date}).eq('id',fid)
+    await refreshBudgetHistory()
   }
   dbSave()
   cm('m-dateEditFund')
   toast('Fund entry updated ✏️')
   renderDateBudget()
+}
+
+// Lightweight re-fetch of the report history log (used after budget/fund/limit edits)
+async function refreshBudgetHistory(){
+  if(!SB_READY||!AU_SB_ID)return
+  const rows=await sbLoadBudgetHistory()
+  S.budgetHistory=(rows||[]).map(h=>({id:h.id,uid:h.user_id===AU_SB_ID?'u1':'u2',srcType:h.source_type,srcId:h.source_id,label:h.source_label,changeType:h.change_type,prev:parseFloat(h.previous_amount)||0,next:parseFloat(h.new_amount)||0,diff:parseFloat(h.difference)||0,createdAt:h.created_at}))
 }
 
 
@@ -4522,6 +4719,9 @@ function openAddSavCat(scope){
   const cp=document.getElementById('savcat-custom-color');if(cp){cp.value='#d4537e';cp.style.outline='none'}
   const cont=document.getElementById('savcat-colors');if(cont)cont.dataset.customColor=''
   const errEl=document.getElementById('savcat-err');if(errEl)errEl.style.display='none'
+  populateAcctSelect('savcat-acct')
+  document.getElementById('savcat-initamt').value=''
+  setSavCatConnect(false)
   document.getElementById('m-addSavCat').style.display='flex'
 }
 async function saveSavCat(e){
@@ -4532,24 +4732,39 @@ async function saveSavCat(e){
   const icon=document.getElementById('savcat-icon').value.trim()||'🎯'
   const sbUserId=uid2==='u1'?AU_SB_ID:AU_PARTNER_ID
   if(!name){showErr('savcat-err','Name is required');return}
-  const cat={id:uid(),uid:uid2,name,icon,color:_savCatColor,entries:[]}
+  const connect=_savCatConnect&&(S.accounts||[]).length>0
+  const acctId=connect?document.getElementById('savcat-acct')?.value:null
+  const initAmt=connect?(parseFloat(document.getElementById('savcat-initamt')?.value)||0):0
+  if(connect&&!acctId){showErr('savcat-err','Choose an account to connect to');return}
+  const cat={id:uid(),uid:uid2,name,icon,color:_savCatColor,entries:[],connected:connect,acctId:connect?acctId:null}
   if(SB_READY&&sbUserId){
     const {data,error}=await _sb.from('personal_savings_goals').insert({
-      user_id:sbUserId,title:name,icon,target_amount:0,color:_savCatColor
+      user_id:sbUserId,title:name,icon,target_amount:0,color:_savCatColor,
+      connected_to_accounts:connect,account_id:connect?acctId:null
     }).select().single()
-    if(error){showErr('savcat-err','Failed to save');return}
+    if(error){showErr('savcat-err',friendlyDbErr(error,'Failed to save'));return}
     if(data)cat.id=data.id
+    if(connect&&initAmt>0){
+      const {error:cErr}=await _sb.from('personal_savings_contributions').insert({
+        goal_id:cat.id,user_id:sbUserId,amount:initAmt,note:'Initial allocation',contribution_date:tod()
+      })
+      if(cErr){showErr('savcat-err',friendlyDbErr(cErr,'Category created, but the initial allocation failed'));cm('m-addSavCat');await loadAllDataFromSB();return}
+    }
   }
   if(!S.savingsCats[uid2])S.savingsCats[uid2]=[]
   S.savingsCats[uid2].push(cat)
-  cm('m-addSavCat');toast(`"${name}" savings created! 🐱`);renderISavings(scope)
+  cm('m-addSavCat');toast(`"${name}" savings created! 🐱`)
+  if(connect)await loadAllDataFromSB(); else renderISavings(scope)
 }
 async function deleteSavCat(scope,catId){
   const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
-  if(!confirm('Delete this savings category and all its entries?'))return
+  const cat=(S.savingsCats[uid2]||[]).find(c=>c.id===catId)
+  const wasConnected=cat?.connected
+  if(!confirm('Delete this savings category and all its entries?'+(wasConnected?' Any connected funds will be returned to My Accounts.':'')))return
   if(SB_READY&&AU_SB_ID)await _sb.from('personal_savings_goals').delete().eq('id',catId)
   S.savingsCats[uid2]=(S.savingsCats[uid2]||[]).filter(c=>c.id!==catId)
-  toast('Category deleted 🗑️');renderISavings(scope)
+  toast(`Category deleted 🗑️${wasConnected?' — funds returned to My Accounts 💰':''}`)
+  if(wasConnected)await loadAllDataFromSB(); else renderISavings(scope)
 }
 function openAddSavEntry(scope,catId){
   document.getElementById('saventry-scope').value=scope
@@ -4579,20 +4794,25 @@ async function saveSavEntry(e){
       goal_id:catId,user_id:sbUserId,amount:_savEntryType==='add'?amt:-amt,
       note:note||null,contribution_date:date
     }).select().single()
-    if(error){showErr('saventry-err','Failed to save');return}
+    if(error){showErr('saventry-err',friendlyDbErr(error,'Failed to save'));return}
     if(data)entry.id=data.id
   }
   if(!cat.entries)cat.entries=[]
   cat.entries.unshift(entry)
-  cm('m-addSavEntry');toast(_savEntryType==='add'?'Savings added! 💚':'Withdrawal recorded ❤️');renderISavings(scope)
+  cm('m-addSavEntry');toast(_savEntryType==='add'?'Savings added! 💚':'Withdrawal recorded ❤️')
+  if(cat.connected)await loadAllDataFromSB(); else renderISavings(scope)
 }
 async function deleteSavEntry2(scope,catId,entryId){
   const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
   if(!confirm('Delete this savings entry?'))return
-  if(SB_READY&&AU_SB_ID)await _sb.from('personal_savings_contributions').delete().eq('id',entryId)
   const cat=(S.savingsCats[uid2]||[]).find(c=>c.id===catId)
+  if(SB_READY&&AU_SB_ID){
+    const {error}=await _sb.from('personal_savings_contributions').delete().eq('id',entryId)
+    if(error){toast(friendlyDbErr(error,'Failed to delete entry'),'⚠️');return}
+  }
   if(cat)cat.entries=(cat.entries||[]).filter(en=>en.id!==entryId)
-  toast('Entry deleted 🗑️');renderISavings(scope)
+  toast('Entry deleted 🗑️')
+  if(cat?.connected)await loadAllDataFromSB(); else renderISavings(scope)
 }
 function renderISavings(scope){
   const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
@@ -4635,6 +4855,7 @@ function renderISavings(scope){
                 <div class="isav-goal-name">${esc(cat.name)}</div>
                 <div class="isav-goal-meta" style="color:${bal>=0?'#34c759':'#ff3b30'};font-weight:700">${P(bal)}</div>
                 <div style="font-size:10px;color:var(--txt3)">💚 +${P(totalIn)} · ❤️ -${P(totalOut)}</div>
+                <span class="badge ${cat.connected?'ba':'bn'}" style="margin-top:4px;display:inline-block">${cat.connected?'🟢 Connected':'⚪ Independent'}</span>
               </div>
               <div class="isav-goal-actions">
                 ${isOwn?`<button class="btn btn-xs btn-p" onclick="openAddSavEntry('${scope}','${cat.id}')">+ Add</button>
@@ -4734,21 +4955,28 @@ async function saveAccount(e){
     if(SB_READY&&AU_SB_ID)await _sb.from('financial_accounts').update({name,account_type:type,opening_balance:openingBal}).eq('id',eid)
     cm('m-addAccount');toast(`"${name}" updated! ✏️`);renderAccounts();return
   }
-  const acct={id:uid(),uid:'u1',name,type,openingBalance:openingBal,transactions:[]}
+  const acct={id:uid(),uid:'u1',name,type,openingBalance:openingBal,transactions:[],createdAt:new Date().toISOString()}
   if(SB_READY&&AU_SB_ID){
     const {data,error}=await _sb.from('financial_accounts').insert({user_id:AU_SB_ID,name,account_type:type,opening_balance:openingBal}).select().single()
     if(error){showErr('acct-err','Failed to save. Run the Accounts SQL patch.');return}
-    if(data)acct.id=data.id
+    if(data){acct.id=data.id;acct.createdAt=data.created_at||acct.createdAt}
   }
   S.accounts.push(acct)
   cm('m-addAccount');toast(`"${name}" account created! 🏧`);renderAccounts()
 }
 
 async function deleteAccount(aid){
-  if(!confirm('Delete this account and all its transactions?'))return
+  const connectedBudgets=(S.budgets.u1||[]).filter(b=>b.connected&&b.acctId===aid)
+  const connectedSavings=(S.savingsCats.u1||[]).filter(c=>c.connected&&c.acctId===aid)
+  let msg='Delete this account and all its transactions?'
+  if(connectedBudgets.length||connectedSavings.length){
+    msg=`This account is connected to ${connectedBudgets.length} budget(s) and ${connectedSavings.length} savings goal(s). Deleting it will unlink them (their money stays where it is, but they'll no longer be tracked against this account). Continue?`
+  }
+  if(!confirm(msg))return
   if(SB_READY&&AU_SB_ID)await _sb.from('financial_accounts').delete().eq('id',aid)
   S.accounts=S.accounts.filter(a=>a.id!==aid)
-  toast('Account deleted 🗑️');renderAccounts()
+  toast('Account deleted 🗑️')
+  if(connectedBudgets.length||connectedSavings.length)await loadAllDataFromSB(); else renderAccounts()
 }
 
 function openAddAcctTxn(aid,type){
@@ -4819,11 +5047,21 @@ function renderAccounts(){
           const exp=txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amt,0)
           const bal=(a.openingBalance||0)+inc-exp
           const sorted=[...txns].sort((x,y)=>y.date.localeCompare(x.date))
+          const connectedBudgets=(S.budgets.u1||[]).filter(b=>b.connected&&b.acctId===a.id)
+          const connectedSavings=(S.savingsCats.u1||[]).filter(c=>c.connected&&c.acctId===a.id)
+          const addedStr=a.createdAt?new Date(a.createdAt).toLocaleDateString('en-PH',{month:'long',day:'numeric',year:'numeric'}):''
+          const txnIcon=t=>{
+            if(t.src==='budget_allocation')return '📤'
+            if(t.src==='budget_return')return '📥'
+            if(t.src==='savings_allocation')return '🐷'
+            if(t.src==='savings_return')return '💸'
+            return t.type==='income'?'💚':'❤️'
+          }
           return `<div class="card" style="margin-bottom:12px;padding:14px 16px">
             <div class="chd" style="margin-bottom:12px">
               <div>
                 <div style="font-size:16px;font-weight:700">${a.type} ${esc(a.name)}</div>
-                <div style="font-size:11px;color:var(--txt3);margin-top:2px">Balance: <strong style="color:${bal>=0?'#34c759':'#ff3b30'};font-size:14px">${P(bal)}</strong> &nbsp;·&nbsp; 💚 ${P((a.openingBalance||0)+inc)} in &nbsp;·&nbsp; ❤️ ${P(exp)} out</div>
+                <div style="font-size:11px;color:var(--txt3);margin-top:2px">Balance: <strong style="color:${bal>=0?'#34c759':'#ff3b30'};font-size:14px">${P(bal)}</strong> &nbsp;·&nbsp; 💚 ${P((a.openingBalance||0)+inc)} in &nbsp;·&nbsp; ❤️ ${P(exp)} out${addedStr?` &nbsp;·&nbsp; 📅 Added: ${addedStr}`:''}</div>
               </div>
               <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
                 <button class="btn btn-p btn-xs" onclick="openAddAcctTxn('${a.id}','income')" style="background:linear-gradient(135deg,var(--teal),#27ae60);border:none">💚 Income</button>
@@ -4832,11 +5070,15 @@ function renderAccounts(){
                 <button class="btn btn-xs btn-d" onclick="deleteAccount('${a.id}')">🗑️</button>
               </div>
             </div>
+            ${(connectedBudgets.length||connectedSavings.length)?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+              ${connectedBudgets.map(b=>`<span class="badge ba" title="Budget · ${P(b.allocated)} allocated">🔗 ${esc(b.title)}</span>`).join('')}
+              ${connectedSavings.map(c=>`<span class="badge ba" title="Savings goal">🔗 ${esc(c.name)}</span>`).join('')}
+            </div>`:''}
             ${sorted.length===0
               ?'<div class="empty" style="padding:12px"><p>No transactions yet</p></div>'
               :`<div class="txn-list">${sorted.slice(0,10).map(t=>`
                 <div class="txn-item">
-                  <div class="txn-icon ${t.type==='income'?'inc':'exp'}">${t.type==='income'?'💚':'❤️'}</div>
+                  <div class="txn-icon ${t.type==='income'?'inc':'exp'}">${txnIcon(t)}</div>
                   <div class="txn-info"><div class="txn-desc">${esc(t.desc)}</div><div class="txn-meta">${fmtD(t.date)}${t.cat?' · '+esc(t.cat):''}</div></div>
                   <div class="txn-amt ${t.type==='income'?'inc':'exp'}">${t.type==='income'?'+':'-'}${P(t.amt)}</div>
                   <button class="txn-del" onclick="deleteAcctTxn('${a.id}','${t.id}')" title="Delete">🗑️</button>
@@ -5109,7 +5351,16 @@ async function afterSignIn(){
 
 function resetLocalData(){
   S.budgets={u1:[],u2:[]}; S.expenses={u1:[],u2:[]}; S.insts={u1:[],u2:[]}
-  S.instPays=[]; S.goals=[]; S.dateBudget={cats:[],expenses:[],funds:[]}; S.todos=[]; S.wishlist={u1:[],u2:[]}; S.schedule={u1:[],u2:[]}; S.accounts=[]; S.walletSubs=[]; S.savingsCats={u1:[],u2:[]}
+  S.instPays=[]; S.goals=[]; S.dateBudget={cats:[],expenses:[],funds:[]}; S.todos=[]; S.wishlist={u1:[],u2:[]}; S.schedule={u1:[],u2:[]}; S.accounts=[]; S.walletSubs=[]; S.savingsCats={u1:[],u2:[]}; S.budgetHistory=[]
+}
+
+// ─── BUDGET / FUND CHANGE HISTORY (My Budget, Partner Budget, Monthly Date) ───
+async function sbLoadBudgetHistory(){
+  if(!SB_READY||!AU_SB_ID) return []
+  const ids=[AU_SB_ID]; if(AU_PARTNER_ID) ids.push(AU_PARTNER_ID)
+  const {data,error}=await _sb.from('budget_change_history').select('*').in('user_id',ids).order('created_at',{ascending:false}).limit(300)
+  if(error){console.warn('Budget history load error:',error);return []}
+  return data||[]
 }
 
 // Wraps a Supabase call so it always resolves (never rejects):
@@ -5130,7 +5381,8 @@ async function loadAllDataFromSB(){
     const [
       budgets, expenses, insts, goals, todos, wl, sched, userCats,
       pb, pe, pi, pt, pw, ps,
-      walletTxns, acctRaw, walletSubsRaw, savingsCatsRaw, partnerSavingsCatsRaw, partnerWalletTxns
+      walletTxns, acctRaw, walletSubsRaw, savingsCatsRaw, partnerSavingsCatsRaw, partnerWalletTxns,
+      budgetHistoryRaw
     ] = await Promise.all([
       sbCall(sbLoadBudgets(AU_SB_ID)),
       sbCall(sbLoadExpenses(AU_SB_ID)),
@@ -5152,10 +5404,11 @@ async function loadAllDataFromSB(){
       sbCall(sbLoadSavingsCats(AU_SB_ID)),
       AU_PARTNER_ID ? sbCall(sbLoadSavingsCats(AU_PARTNER_ID)) : Promise.resolve([]),
       AU_PARTNER_ID ? sbCall(sbLoadWalletTxns(AU_PARTNER_ID)) : Promise.resolve([]),
+      sbCall(sbLoadBudgetHistory()),
     ])
     // Map results
-    S.budgets.u1=(budgets||[]).map(b=>({id:b.id,uid:'u1',title:b.title,type:b.budget_type||'📋 General',amt:parseFloat(b.amount)||0,spent:parseFloat(b.total_spent)||0,start:b.start_date,days:b.duration_days||null,end:b.end_date||null,status:b.status,xfer:parseFloat(b.transferred)||0,notes:b.notes||''}))
-    S.budgets.u2=(pb||[]).map(b=>({id:b.id,uid:'u2',title:b.title,type:b.budget_type||'📋 General',amt:parseFloat(b.amount)||0,spent:parseFloat(b.total_spent)||0,start:b.start_date,days:b.duration_days||null,end:b.end_date||null,status:b.status,xfer:parseFloat(b.transferred)||0,notes:b.notes||''}))
+    S.budgets.u1=(budgets||[]).map(b=>({id:b.id,uid:'u1',title:b.title,type:b.budget_type||'📋 General',amt:parseFloat(b.amount)||0,spent:parseFloat(b.total_spent)||0,start:b.start_date,days:b.duration_days||null,end:b.end_date||null,status:b.status,xfer:parseFloat(b.transferred)||0,notes:b.notes||'',connected:!!b.connected_to_accounts,acctId:b.account_id||null,allocated:parseFloat(b.allocated_amount)||0}))
+    S.budgets.u2=(pb||[]).map(b=>({id:b.id,uid:'u2',title:b.title,type:b.budget_type||'📋 General',amt:parseFloat(b.amount)||0,spent:parseFloat(b.total_spent)||0,start:b.start_date,days:b.duration_days||null,end:b.end_date||null,status:b.status,xfer:parseFloat(b.transferred)||0,notes:b.notes||'',connected:!!b.connected_to_accounts,acctId:b.account_id||null,allocated:parseFloat(b.allocated_amount)||0}))
     S.expenses.u1=(expenses||[]).map(e=>({id:e.id,uid:'u1',bid:e.budget_id,desc:e.description,amt:parseFloat(e.amount)||0,date:e.expense_date,catId:e.category_id||'cat8',pm:e.payment_method||'cash',custCat:e.custom_category||''}))
     S.expenses.u2=(pe||[]).map(e=>({id:e.id,uid:'u2',bid:e.budget_id,desc:e.description,amt:parseFloat(e.amount)||0,date:e.expense_date,catId:e.category_id||'cat8',pm:e.payment_method||'cash',custCat:e.custom_category||''}))
     S.insts.u1=(insts||[]).map(i=>({id:i.id,uid:'u1',bid:i.budget_id||null,name:i.item_name,total:parseFloat(i.total_cost)||0,down:parseFloat(i.down_payment)||0,payAmt:parseFloat(i.payment_amount)||0,freq:i.frequency||'monthly',numPay:i.total_payments||1,paid:i.payments_made||0,nextDue:i.next_due_date,auto:i.auto_add_expense,status:i.status||'active',pm:i.payment_method||'cash'}))
@@ -5176,9 +5429,11 @@ async function loadAllDataFromSB(){
     S.accounts=allAccts.filter(a=>a.account_section!=='wallet').map(a=>({
       id:a.id,uid:'u1',name:a.name,type:a.account_type||'💵 Cash',
       openingBalance:parseFloat(a.opening_balance)||0,
+      createdAt:a.created_at||null,
       transactions:(a.account_transactions||[]).map(t=>({
         id:t.id,aid:a.id,desc:t.description,amt:parseFloat(t.amount)||0,
-        type:t.type,date:t.transaction_date,cat:t.category||''
+        type:t.type,date:t.transaction_date,cat:t.category||'',
+        src:t.txn_source||'manual',bid:t.budget_id||null,sgid:t.savings_id||null
       }))
     }))
     // Wallet sub-categories (section='wallet')
@@ -5196,10 +5451,12 @@ async function loadAllDataFromSB(){
         id:c.id,catId:g.id,type:parseFloat(c.amount)>=0?'add':'withdraw',
         amt:Math.abs(parseFloat(c.amount)||0),note:c.note||'',date:c.contribution_date
       }))
-      return {id:g.id,uid:uid2,name:g.title,icon:g.icon||'🎯',color:g.color||'#d4537e',entries}
+      return {id:g.id,uid:uid2,name:g.title,icon:g.icon||'🎯',color:g.color||'#d4537e',entries,connected:!!g.connected_to_accounts,acctId:g.account_id||null}
     }
     S.savingsCats.u1=(savingsCatsRaw||[]).map(g=>mapSavCat(g,'u1'))
     S.savingsCats.u2=(partnerSavingsCatsRaw||[]).map(g=>mapSavCat(g,'u2'))
+    // Budget & fund change history
+    S.budgetHistory=(budgetHistoryRaw||[]).map(h=>({id:h.id,uid:h.user_id===AU_SB_ID?'u1':'u2',srcType:h.source_type,srcId:h.source_id,label:h.source_label,changeType:h.change_type,prev:parseFloat(h.previous_amount)||0,next:parseFloat(h.new_amount)||0,diff:parseFloat(h.difference)||0,createdAt:h.created_at}))
     // (accounts and wallet subs already mapped above from allAccts)
     if(userCats2.length>0){
       const sbCatMap={}; userCats2.forEach(uc=>sbCatMap[uc.name]=uc.id)
