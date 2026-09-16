@@ -1074,6 +1074,10 @@ tbody tr:hover td{background:var(--bg3)}
       <div class="fg"><label>Date</label><input id="acct-txn-date" type="date"/></div>
     </div>
     <div class="fg"><label>Category (optional)</label><input id="acct-txn-cat" placeholder="e.g. Food, Bills…" maxlength="40"/></div>
+    <div class="fg"><label>Link to (optional)</label>
+      <select id="acct-txn-link"><option value="">— None —</option></select>
+      <div style="font-size:10px;color:var(--txt3);margin-top:5px">Tags this transaction against a budget or savings goal for your records — it won't move any extra money.</div>
+    </div>
     <div class="err" id="acct-txn-err"></div>
     <div class="mfoot"><button class="btn" onclick="cm('m-addAcctTxn')">Cancel</button><button class="btn btn-p" onclick="saveAcctTxn(event)">Save</button></div>
   </div>
@@ -1570,7 +1574,7 @@ tbody tr:hover td{background:var(--bg3)}
     <div class="mhd"><div class="mtitle">✏️ Edit Fund Entry</div><button class="mclose" onclick="cm('m-dateEditFund')">✕</button></div>
     <input type="hidden" id="def-fid"/>
     <div class="mbody">
-      <div class="fg"><label>Amount (₱)</label><input type="number" id="def-amt" min="0"/></div>
+      <div class="fg"><label>Amount (₱)</label><input type="number" id="def-amt" min="0" oninput="renderDefConnectPreview()"/></div>
       <div class="fg"><label>Funded by</label>
         <select id="def-who">
           <option value="u1" id="def-who-u1">Me</option>
@@ -1580,6 +1584,20 @@ tbody tr:hover td{background:var(--bg3)}
       </div>
       <div class="fg"><label>Note (optional)</label><input type="text" id="def-note"/></div>
       <div class="fg"><label>Date</label><input type="date" id="def-date"/></div>
+      <div class="fg" id="def-connect-wrap" style="margin-top:2px">
+        <label>Fund Source</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+          <button type="button" id="def-connect-no" class="btn btn-p" onclick="setDefConnect(false)">⚪ Don't Connect</button>
+          <button type="button" id="def-connect-yes" class="btn btn-g" onclick="setDefConnect(true)">🟢 Connect to My Accounts</button>
+        </div>
+        <div id="def-connect-detail" style="display:none;margin-top:10px">
+          <div class="fg" style="margin-bottom:8px"><label>Account</label>
+            <select id="def-acct" onchange="renderDefConnectPreview()"></select>
+          </div>
+          <div id="def-connect-preview" style="font-size:12px;color:var(--txt2);background:var(--bg3);border-radius:9px;padding:9px 11px;line-height:1.6"></div>
+        </div>
+        <div id="def-connect-noaccts" style="display:none;font-size:11px;color:var(--txt3);margin-top:6px">You don't have any accounts yet — create one in <strong>My Accounts</strong> first to connect funds.</div>
+      </div>
       <div class="err" id="def-err" style="display:none"></div>
     </div>
     <div class="mfoot"><button class="btn" onclick="cm('m-dateEditFund')">Cancel</button><button class="btn btn-p" onclick="saveEditFund()">Save Changes</button></div>
@@ -1594,7 +1612,7 @@ tbody tr:hover td{background:var(--bg3)}
     <div class="mhd"><div class="mtitle" id="df-title">💰 Add Funds to Date Budget</div><button class="mclose" onclick="cm('m-dateFund')">✕</button></div>
     <input type="hidden" id="df-eid"/>
     <div class="mbody">
-      <div class="fg"><label>Amount (₱)</label><input type="number" id="df-amt" placeholder="e.g. 500" min="0"/></div>
+      <div class="fg"><label>Amount (₱)</label><input type="number" id="df-amt" placeholder="e.g. 500" min="0" oninput="renderDfConnectPreview()"/></div>
       <div class="fg"><label>Funded by</label>
         <select id="df-who">
           <option value="u1" id="df-who-u1">Me</option>
@@ -1604,6 +1622,20 @@ tbody tr:hover td{background:var(--bg3)}
       </div>
       <div class="fg"><label>Note (optional)</label><input type="text" id="df-note" placeholder="e.g. February date money"/></div>
       <div class="fg"><label>Date</label><input type="date" id="df-date"/></div>
+      <div class="fg" id="df-connect-wrap" style="margin-top:2px">
+        <label>Fund Source</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+          <button type="button" id="df-connect-no" class="btn btn-p" onclick="setDfConnect(false)">⚪ Don't Connect</button>
+          <button type="button" id="df-connect-yes" class="btn btn-g" onclick="setDfConnect(true)">🟢 Connect to My Accounts</button>
+        </div>
+        <div id="df-connect-detail" style="display:none;margin-top:10px">
+          <div class="fg" style="margin-bottom:8px"><label>Account</label>
+            <select id="df-acct" onchange="renderDfConnectPreview()"></select>
+          </div>
+          <div id="df-connect-preview" style="font-size:12px;color:var(--txt2);background:var(--bg3);border-radius:9px;padding:9px 11px;line-height:1.6"></div>
+        </div>
+        <div id="df-connect-noaccts" style="display:none;font-size:11px;color:var(--txt3);margin-top:6px">You don't have any accounts yet — create one in <strong>My Accounts</strong> first to connect funds.</div>
+      </div>
       <div class="err" id="df-err" style="display:none"></div>
     </div>
     <div class="mfoot"><button class="btn" onclick="cm('m-dateFund')">Cancel</button><button class="btn btn-p" style="background:linear-gradient(135deg,#e91e8c,#c2185b);border:none" onclick="saveDateFund(event)">Add Funds</button></div>
@@ -1655,9 +1687,10 @@ tbody tr:hover td{background:var(--bg3)}
 <div class="overlay" id="m-addSav" style="display:none" onclick="obg(event,'m-addSav')">
   <div class="modal"><div class="mtitle" id="sav-mtitle">🏦 Add to Savings</div>
     <input type="hidden" id="sav-eid"/><input type="hidden" id="sav-gid"/>
-    <div class="fg"><label>Savings Goal</label><select id="sav-goal"></select></div>
+    <div class="fg"><label>Savings Goal</label><select id="sav-goal" onchange="renderSavGoalConnectNote()"></select></div>
     <div class="fg"><label>Amount (₱)</label><input id="sav-amt" type="number" min="0.01" step="0.01" placeholder="500"/></div>
     <div class="fg"><label>Note (optional)</label><input id="sav-note" placeholder="e.g. Birthday savings"/></div>
+    <div id="sav-connect-note" style="display:none;font-size:11px;color:var(--teal);background:var(--teal-bg);border-radius:9px;padding:8px 11px;margin-bottom:10px">🟢 This goal is connected — the amount will be deducted from its linked account.</div>
     <div class="err" id="sav-err"></div>
     <div class="mfoot"><button class="btn" onclick="cm('m-addSav')">Cancel</button><button class="btn btn-p" onclick="saveSav(event)">Deposit</button></div>
   </div>
@@ -1672,6 +1705,21 @@ tbody tr:hover td{background:var(--bg3)}
     <div class="fg"><label>Target Amount (₱)</label><input id="goal-target" type="number" min="1" step="0.01" placeholder="50000"/></div>
     <div class="fg"><label>Color Theme</label>
       <select id="goal-color"><option value="#d4537e">🌸 Pink</option><option value="#3aaa7e">🌿 Teal</option><option value="#9b59b6">💜 Purple</option><option value="#e0a020">🌟 Gold</option><option value="#3498db">💙 Blue</option><option value="#e74c3c">❤️ Red</option></select>
+    </div>
+    <div class="fg" id="goal-connect-wrap" style="margin-top:2px">
+      <label>Fund Source</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+        <button type="button" id="goal-connect-no" class="btn btn-p" onclick="setGoalConnect(false)">⚪ Don't Connect</button>
+        <button type="button" id="goal-connect-yes" class="btn btn-g" onclick="setGoalConnect(true)">🟢 Connect to My Accounts</button>
+      </div>
+      <div id="goal-connect-detail" style="display:none;margin-top:10px">
+        <div class="fg" style="margin-bottom:8px"><label>Account</label>
+          <select id="goal-acct" onchange="renderGoalConnectPreview()"></select>
+        </div>
+        <div id="goal-connect-preview" style="font-size:12px;color:var(--txt2);background:var(--bg3);border-radius:9px;padding:9px 11px;line-height:1.6"></div>
+      </div>
+      <div id="goal-connect-noaccts" style="display:none;font-size:11px;color:var(--txt3);margin-top:6px">You don't have any accounts yet — create one in <strong>My Accounts</strong> first to connect funds.</div>
+      <div style="font-size:10px;color:var(--txt3);margin-top:6px">When connected, every deposit you add to this goal will be deducted from the linked account.</div>
     </div>
     <div class="err" id="goal-err"></div>
     <div class="mfoot"><button class="btn" onclick="cm('m-newGoal')">Cancel</button><button class="btn btn-p" onclick="saveGoal(event)">Create Goal</button></div>
@@ -2349,6 +2397,7 @@ function renderShared(){
       </div>
       <div class="pw" style="height:10px"><div class="pf" style="width:${p}%;background:linear-gradient(90deg,${g.color}88,${g.color})"></div></div>
       <div class="pmeta"><span>${P(cur)} saved</span><span>Goal: ${P(g.target)}</span></div>
+      <div style="margin-top:8px"><span class="badge ${g.connected?'ba':'bn'}">${g.connected?'🟢 Connected to My Accounts':'⚪ Independent Funds'}</span></div>
       <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
         <button class="btn btn-sm" style="background:${g.color};color:#fff;border-color:transparent" onclick="openAddSavToGoal(event,'${g.id}')">+ Deposit</button>
         <button class="btn btn-xs btn-g" onclick="openEditGoal(event,'${g.id}')">✏️ Edit</button>
@@ -2938,6 +2987,13 @@ function openModal(id,ctx){
     populateAcctSelect('nb-acct')
     setBudgetConnect(false)
   }
+  if(id==='m-newGoal'){
+    populateAcctSelect('goal-acct')
+    setGoalConnect(false)
+  }
+  if(id==='m-addSav'){
+    renderSavGoalConnectNote()
+  }
   document.getElementById(id).style.display='flex'
 }
 function cm(id){document.getElementById(id).style.display='none'}
@@ -3001,6 +3057,82 @@ function renderSavCatConnectPreview(){
   const bal=acctBalance(acct); const remain=bal-amt
   prev.innerHTML=`Available Balance: <strong>${P(bal)}</strong><br>Amount to Allocate: <strong>${P(amt)}</strong><br>Remaining Balance: <strong style="color:${remain<0?'var(--danger)':'var(--teal)'}">${P(remain)}</strong>`
     +(remain<0?`<br><span style="color:var(--danger);font-weight:700">⚠️ Insufficient Funds — only ${P(bal)} available in this account.</span>`:'')
+}
+
+// ─── v7: Monthly Date Budget — Add Funds connect toggle ───
+let _dfConnect=false
+function setDfConnect(yes){
+  _dfConnect=yes
+  const yb=document.getElementById('df-connect-yes'),nb=document.getElementById('df-connect-no')
+  if(yb)yb.className=yes?'btn btn-p':'btn btn-g'
+  if(nb)nb.className=!yes?'btn btn-p':'btn btn-g'
+  const detail=document.getElementById('df-connect-detail'),noaccts=document.getElementById('df-connect-noaccts')
+  if(yes&&(S.accounts||[]).length===0){detail.style.display='none';noaccts.style.display='block'}
+  else{detail.style.display=yes?'block':'none';noaccts.style.display='none';if(yes)renderDfConnectPreview()}
+}
+function renderDfConnectPreview(){
+  const prev=document.getElementById('df-connect-preview');if(!prev)return
+  const aid=document.getElementById('df-acct')?.value
+  const acct=(S.accounts||[]).find(a=>a.id===aid)
+  const amt=parseFloat(document.getElementById('df-amt')?.value)||0
+  if(!acct){prev.innerHTML='Select an account to preview the allocation.';return}
+  const bal=acctBalance(acct); const remain=bal-amt
+  prev.innerHTML=`Available Balance: <strong>${P(bal)}</strong><br>Amount to Allocate: <strong>${P(amt)}</strong><br>Remaining Balance: <strong style="color:${remain<0?'var(--danger)':'var(--teal)'}">${P(remain)}</strong>`
+    +(remain<0?`<br><span style="color:var(--danger);font-weight:700">⚠️ Insufficient Funds — only ${P(bal)} available in this account.</span>`:'')
+}
+
+// ─── v7: Monthly Date Budget — Edit Fund connect toggle ───
+let _defConnect=false
+function setDefConnect(yes){
+  _defConnect=yes
+  const yb=document.getElementById('def-connect-yes'),nb=document.getElementById('def-connect-no')
+  if(yb)yb.className=yes?'btn btn-p':'btn btn-g'
+  if(nb)nb.className=!yes?'btn btn-p':'btn btn-g'
+  const detail=document.getElementById('def-connect-detail'),noaccts=document.getElementById('def-connect-noaccts')
+  if(yes&&(S.accounts||[]).length===0){detail.style.display='none';noaccts.style.display='block'}
+  else{detail.style.display=yes?'block':'none';noaccts.style.display='none';if(yes)renderDefConnectPreview()}
+}
+function renderDefConnectPreview(){
+  const prev=document.getElementById('def-connect-preview');if(!prev)return
+  const aid=document.getElementById('def-acct')?.value
+  const acct=(S.accounts||[]).find(a=>a.id===aid)
+  const amt=parseFloat(document.getElementById('def-amt')?.value)||0
+  if(!acct){prev.innerHTML='Select an account to preview the allocation.';return}
+  const fid=document.getElementById('def-fid')?.value
+  const existing=fid?(S.dateBudget.funds||[]).find(f=>f.id===fid):null
+  const bal=acctBalance(acct)
+  const availBal=(existing&&existing.connected&&existing.acctId===aid)?bal+existing.amt:bal
+  const remain=availBal-amt
+  prev.innerHTML=`Available Balance: <strong>${P(availBal)}</strong><br>Amount to Allocate: <strong>${P(amt)}</strong><br>Remaining Balance: <strong style="color:${remain<0?'var(--danger)':'var(--teal)'}">${P(remain)}</strong>`
+    +(remain<0?`<br><span style="color:var(--danger);font-weight:700">⚠️ Insufficient Funds — only ${P(availBal)} available in this account.</span>`:'')
+}
+
+// ─── v7: Shared Goals — New Goal connect toggle ───
+let _goalConnect=false
+function setGoalConnect(yes){
+  _goalConnect=yes
+  const yb=document.getElementById('goal-connect-yes'),nb=document.getElementById('goal-connect-no')
+  if(yb)yb.className=yes?'btn btn-p':'btn btn-g'
+  if(nb)nb.className=!yes?'btn btn-p':'btn btn-g'
+  const detail=document.getElementById('goal-connect-detail'),noaccts=document.getElementById('goal-connect-noaccts')
+  if(yes&&(S.accounts||[]).length===0){detail.style.display='none';noaccts.style.display='block'}
+  else{detail.style.display=yes?'block':'none';noaccts.style.display='none';if(yes)renderGoalConnectPreview()}
+}
+function renderGoalConnectPreview(){
+  const prev=document.getElementById('goal-connect-preview');if(!prev)return
+  const aid=document.getElementById('goal-acct')?.value
+  const acct=(S.accounts||[]).find(a=>a.id===aid)
+  if(!acct){prev.innerHTML='Select an account to link this goal to.';return}
+  const bal=acctBalance(acct)
+  prev.innerHTML=`Available Balance: <strong>${P(bal)}</strong><br>Connecting won't move any money yet — each deposit you add afterward will be deducted from this account.`
+}
+
+// ─── v7: Shared Goals — deposit modal connected-goal note ───
+function renderSavGoalConnectNote(){
+  const note=document.getElementById('sav-connect-note');if(!note)return
+  const gid=document.getElementById('sav-goal')?.value
+  const goal=(S.goals||[]).find(g=>g.id===gid)
+  note.style.display=(goal&&goal.connected)?'block':'none'
 }
 
 // Friendly translation of the Postgres "insufficient_funds:" exception
@@ -3297,6 +3429,7 @@ function openAddSavToGoal(e,gid){
   const sel=document.getElementById('sav-goal')
   sel.innerHTML=S.goals.map(g=>`<option value="${g.id}" ${g.id===gid?'selected':''}>${g.icon} ${esc(g.title)}</option>`).join('')
   document.getElementById('sav-mtitle').textContent='🏦 Add to Savings';document.getElementById('sav-err').style.display='none'
+  renderSavGoalConnectNote()
   document.getElementById('m-addSav').style.display='flex'
 }
 function openEditSav(e,cid){
@@ -3307,6 +3440,7 @@ function openEditSav(e,cid){
   const sel=document.getElementById('sav-goal');sel.innerHTML=S.goals.map(g=>`<option value="${g.id}" ${g.id===foundG.id?'selected':''}>${g.icon} ${esc(g.title)}</option>`).join('')
   document.getElementById('sav-amt').value=found.amt;document.getElementById('sav-note').value=found.note||''
   document.getElementById('sav-mtitle').textContent='✏️ Edit Contribution';document.getElementById('sav-err').style.display='none'
+  renderSavGoalConnectNote()
   document.getElementById('m-addSav').style.display='flex'
 }
 async function saveSav(e){
@@ -3314,47 +3448,75 @@ async function saveSav(e){
   if(!amt||amt<=0){showErr('sav-err','Enter a valid amount');return}
   const goal=S.goals.find(g=>g.id===gid);if(!goal){showErr('sav-err','Goal not found');return}
   if(eid){
-    if(SB_READY&&AU_SB_ID)await _sb.from('savings_contributions').update({amount:amt,note}).eq('id',eid)
+    if(SB_READY&&AU_SB_ID){
+      const {error}=await _sb.from('savings_contributions').update({amount:amt,note}).eq('id',eid)
+      if(error){showErr('sav-err',friendlyDbErr(error,'Failed to save'));return}
+    }
     S.goals.forEach(g=>{const idx=g.contributions.findIndex(c=>c.id===eid);if(idx>-1)g.contributions[idx]={...g.contributions[idx],amt,note}});toast('Contribution updated ✏️')
   } else {
     let newId=uid()
     if(SB_READY&&AU_SB_ID){
-      const saved=await sbAddContribution({goal_id:gid,user_id:AU_SB_ID,amount:amt,source:'manual',note,contribution_date:tod()})
-      if(saved)newId=saved.id; else{showErr('sav-err','Failed to save');return}
+      const {data,error}=await _sb.from('savings_contributions').insert({goal_id:gid,user_id:AU_SB_ID,amount:amt,source:'manual',note,contribution_date:tod()}).select().single()
+      if(error){showErr('sav-err',friendlyDbErr(error,'Failed to save'));return}
+      if(data)newId=data.id
     }
     goal.contributions.unshift({id:newId,uid:AU,amt,source:'manual',note,date:tod()});toast(`${P(amt)} deposited to ${goal.title}! 🏦`)
   }
-  cm('m-addSav');renderShared()
+  cm('m-addSav')
+  if(goal.connected)await loadAllDataFromSB(); else renderShared()
 }
 async function delSav(cid){
-  if(SB_READY&&AU_SB_ID)await _sb.from('savings_contributions').delete().eq('id',cid)
+  let goal=null
+  S.goals.forEach(g=>{if(g.contributions.find(c=>c.id===cid))goal=g})
+  if(SB_READY&&AU_SB_ID){
+    const {error}=await _sb.from('savings_contributions').delete().eq('id',cid)
+    if(error){toast(friendlyDbErr(error,'Failed to delete'),'⚠️');return}
+  }
   S.goals.forEach(g=>{g.contributions=g.contributions.filter(c=>c.id!==cid)})
-  toast('Contribution removed 🗑️');renderShared()
+  toast('Contribution removed 🗑️')
+  if(goal&&goal.connected)await loadAllDataFromSB(); else renderShared()
 }
 // Goal CRUD
 function openEditGoal(e,gid){
   CP(e);const g=S.goals.find(x=>x.id===gid);if(!g)return
   document.getElementById('goal-eid').value=gid;document.getElementById('goal-title').value=g.title;document.getElementById('goal-icon').value=g.icon;document.getElementById('goal-target').value=g.target;document.getElementById('goal-color').value=g.color
   document.getElementById('goal-mtitle').textContent='✏️ Edit Goal';document.getElementById('goal-err').style.display='none'
+  populateAcctSelect('goal-acct')
+  setGoalConnect(!!g.connected)
+  if(g.connected&&g.acctId)document.getElementById('goal-acct').value=g.acctId
   document.getElementById('m-newGoal').style.display='flex'
 }
 async function saveGoal(e){
   CP(e);const eid=document.getElementById('goal-eid').value,title=document.getElementById('goal-title').value.trim(),icon=document.getElementById('goal-icon').value.trim()||'🎯',target=parseFloat(document.getElementById('goal-target').value),color=document.getElementById('goal-color').value
   if(!title||!target){showErr('goal-err','Fill all fields');return}
+  const connect=_goalConnect&&(S.accounts||[]).length>0
+  const acctId=connect?document.getElementById('goal-acct')?.value:null
+  if(connect&&!acctId){showErr('goal-err','Choose an account to connect to');return}
   if(eid){
-    if(SB_READY&&AU_SB_ID)await _sb.from('savings_goals').update({title,icon,target_amount:target,color}).eq('id',eid)
-    const idx=S.goals.findIndex(g=>g.id===eid);if(idx>-1)S.goals[idx]={...S.goals[idx],title,icon,target,color};toast('Goal updated ✏️')
+    if(SB_READY&&AU_SB_ID){
+      const {error}=await _sb.from('savings_goals').update({title,icon,target_amount:target,color,connected_to_accounts:connect,account_id:connect?acctId:null}).eq('id',eid)
+      if(error){showErr('goal-err',friendlyDbErr(error,'Failed to save'));return}
+    }
+    const idx=S.goals.findIndex(g=>g.id===eid);if(idx>-1)S.goals[idx]={...S.goals[idx],title,icon,target,color,connected:connect,acctId:connect?acctId:null};toast('Goal updated ✏️')
   } else {
     let newId=uid()
     if(SB_READY&&AU_SB_ID){
-      const saved=await sbCreateGoal({owner_id:AU_SB_ID,title,icon,target_amount:target,color})
-      if(saved)newId=saved.id; else{showErr('goal-err','Failed to save');return}
+      const {data,error}=await _sb.from('savings_goals').insert({owner_id:AU_SB_ID,title,icon,target_amount:target,color,connected_to_accounts:connect,account_id:connect?acctId:null}).select().single()
+      if(error){showErr('goal-err',friendlyDbErr(error,'Failed to save'));return}
+      if(data)newId=data.id
     }
-    S.goals.push({id:newId,title,icon,target,color,contributions:[]});toast('Savings goal created! 🎯')
+    S.goals.push({id:newId,title,icon,target,color,connected:connect,acctId:connect?acctId:null,contributions:[]});toast('Savings goal created! 🎯')
   }
   cm('m-newGoal');renderShared()
 }
-async function delGoal(gid){if(SB_READY&&AU_SB_ID)await sbDeleteGoal(gid);S.goals=S.goals.filter(g=>g.id!==gid);toast('Goal deleted 🗑️');renderShared()}
+async function delGoal(gid){
+  const g=S.goals.find(x=>x.id===gid)
+  const wasConnected=g&&g.connected
+  if(SB_READY&&AU_SB_ID)await sbDeleteGoal(gid)
+  S.goals=S.goals.filter(g=>g.id!==gid)
+  toast('Goal deleted 🗑️'+(wasConnected?' — funds returned to My Accounts 💰':''))
+  if(wasConnected)await loadAllDataFromSB(); else renderShared()
+}
 
 // ─── MONTHLY DATE BUDGET ─────────────────────────────────
 // Generate proper UUID v4 for Supabase (id column is uuid type)
@@ -3428,6 +3590,8 @@ function openDateFund(e){
   var o2=document.getElementById('df-who-u2'); if(o2) o2.textContent=USERS.u2.name
   document.getElementById('df-err').style.display='none'
   document.getElementById('df-title').textContent='💰 Add Funds to Date Budget'
+  populateAcctSelect('df-acct')
+  setDfConnect(false)
   document.getElementById('m-dateFund').style.display='flex'
 }
 function openDateCat(e){
@@ -3503,19 +3667,23 @@ async function saveDateFund(e){
   var note=(document.getElementById('df-note').value||'').trim()
   var date=document.getElementById('df-date').value||tod()
   if(!amt||amt<=0){showErr('df-err','Enter a valid amount');return}
-  var entry={id:dbUid(),amt:amt,who:who,note:note,date:date}
+  var connect=_dfConnect&&(S.accounts||[]).length>0
+  var acctId=connect?document.getElementById('df-acct')?.value:null
+  if(connect&&!acctId){showErr('df-err','Choose an account to connect to');return}
+  var entry={id:dbUid(),amt:amt,who:who,note:note,date:date,connected:connect,acctId:connect?acctId:null}
   if(SB_READY&&AU_SB_ID){
     var res=await _sb.from('date_budget_funds').insert({
       id:entry.id,user_id:AU_SB_ID,amount:amt,funded_by:who,
-      note:note||null,fund_date:date
+      note:note||null,fund_date:date,connected_to_accounts:connect,account_id:connect?acctId:null
     })
-    if(res.error){console.error('fund insert error:',res.error);showErr('df-err','DB error: '+res.error.message);return}
+    if(res.error){console.error('fund insert error:',res.error);showErr('df-err',friendlyDbErr(res.error,'Failed to save'));return}
     if(res.data&&res.data[0]&&res.data[0].id) entry.id=res.data[0].id
   }
   S.dateBudget.funds.unshift(entry)
   dbSave()
   cm('m-dateFund')
   toast(P(amt)+' added to date fund! 💰')
+  if(connect)await Promise.all([loadAllDataFromSB(),loadDateBudgetFromSB()]);
   renderDateBudget()
 }
 
@@ -3634,11 +3802,14 @@ async function deleteDateExp(eid){
   renderDateBudget()
 }
 async function deleteDateFund(fid){
-  if(!confirm('Remove this fund entry?')) return
+  var fd=(S.dateBudget.funds||[]).find(function(f){return f.id===fid})
+  var wasConnected=fd&&fd.connected
+  if(!confirm('Remove this fund entry?'+(wasConnected?' Connected funds will be returned to My Accounts.':''))) return
   S.dateBudget.funds=(S.dateBudget.funds||[]).filter(function(f){return f.id!==fid})
   if(SB_READY&&AU_SB_ID) await _sb.from('date_budget_funds').delete().eq('id',fid)
   dbSave()
-  toast('Fund entry removed 🗑️')
+  toast('Fund entry removed 🗑️'+(wasConnected?' — funds returned to My Accounts 💰':''))
+  if(wasConnected)await Promise.all([loadAllDataFromSB(),loadDateBudgetFromSB()])
   renderDateBudget()
 }
 
@@ -3811,7 +3982,7 @@ function _renderDateBudgetBody(){
         var row=document.createElement('div'); row.className='row'
         row.innerHTML=
           '<div class="rico" style="background:var(--teal-bg)">💰</div>'+
-          '<div class="rinfo"><div class="rname">Funds by '+esc(fwho)+'</div>'+
+          '<div class="rinfo"><div class="rname">Funds by '+esc(fwho)+(fd.connected?' <span class="badge ba" style="font-size:9px">🟢 connected</span>':'')+'</div>'+
             '<div class="rsub">'+fmtD(fd.date)+(fd.note?' · '+esc(fd.note):'')+'</div></div>'+
           '<div class="rright">'+
             '<div class="ramt" style="color:var(--teal)">+'+P(fd.amt)+'</div>'+
@@ -4179,6 +4350,9 @@ function openEditFund(fid){
   var o1=document.getElementById('def-who-u1');if(o1) o1.textContent=USERS.u1.name
   var o2=document.getElementById('def-who-u2');if(o2) o2.textContent=USERS.u2.name
   document.getElementById('def-err').style.display='none'
+  populateAcctSelect('def-acct')
+  setDefConnect(!!fd.connected)
+  if(fd.connected&&fd.acctId)document.getElementById('def-acct').value=fd.acctId
   document.getElementById('m-dateEditFund').style.display='flex'
 }
 async function saveEditFund(){
@@ -4188,6 +4362,17 @@ async function saveEditFund(){
   var note=(document.getElementById('def-note').value||'').trim()
   var date=document.getElementById('def-date').value||tod()
   if(!amt||amt<=0){document.getElementById('def-err').textContent='Enter a valid amount';document.getElementById('def-err').style.display='block';return}
+  var connect=_defConnect&&(S.accounts||[]).length>0
+  var acctId=connect?document.getElementById('def-acct')?.value:null
+  if(connect&&!acctId){document.getElementById('def-err').textContent='Choose an account to connect to';document.getElementById('def-err').style.display='block';return}
+  if(SB_READY&&AU_SB_ID){
+    var upd=await _sb.from('date_budget_funds').update({
+      amount:amt,funded_by:who,note:note||null,fund_date:date,
+      connected_to_accounts:connect,account_id:connect?acctId:null
+    }).eq('id',fid)
+    if(upd.error){document.getElementById('def-err').textContent=friendlyDbErr(upd.error,'Failed to save');document.getElementById('def-err').style.display='block';return}
+    await refreshBudgetHistory()
+  }
   var idx=-1
   for(var i=0;i<(S.dateBudget.funds||[]).length;i++){
     if(S.dateBudget.funds[i].id===fid){idx=i;break}
@@ -4197,14 +4382,13 @@ async function saveEditFund(){
     S.dateBudget.funds[idx].who=who
     S.dateBudget.funds[idx].note=note
     S.dateBudget.funds[idx].date=date
-  }
-  if(SB_READY&&AU_SB_ID){
-    await _sb.from('date_budget_funds').update({amount:amt,funded_by:who,note:note||null,fund_date:date}).eq('id',fid)
-    await refreshBudgetHistory()
+    S.dateBudget.funds[idx].connected=connect
+    S.dateBudget.funds[idx].acctId=connect?acctId:null
   }
   dbSave()
   cm('m-dateEditFund')
   toast('Fund entry updated ✏️')
+  if(SB_READY&&AU_SB_ID)await Promise.all([loadAllDataFromSB(),loadDateBudgetFromSB()])
   renderDateBudget()
 }
 
@@ -4239,7 +4423,7 @@ async function loadDateBudgetFromSB(){
       })
     }
     if(!er.error) S.dateBudget.expenses=(er.data||[]).map(function(e){return{id:e.id,desc:e.description,amt:+(e.amount)||0,catId:e.category_id||'dbc-other',who:e.paid_by||'u1',date:e.expense_date,note:e.note||''}})
-    if(!fr.error) S.dateBudget.funds=(fr.data||[]).map(function(f){return{id:f.id,amt:+(f.amount)||0,who:f.funded_by||'u1',note:f.note||'',date:f.fund_date}})
+    if(!fr.error) S.dateBudget.funds=(fr.data||[]).map(function(f){return{id:f.id,amt:+(f.amount)||0,who:f.funded_by||'u1',note:f.note||'',date:f.fund_date,connected:!!f.connected_to_accounts,acctId:f.account_id||null}})
     // Load history from Supabase
     try{
       var hr=await _sb.from('date_budget_history').select('*').order('created_at',{ascending:false})
@@ -4968,15 +5152,18 @@ async function saveAccount(e){
 async function deleteAccount(aid){
   const connectedBudgets=(S.budgets.u1||[]).filter(b=>b.connected&&b.acctId===aid)
   const connectedSavings=(S.savingsCats.u1||[]).filter(c=>c.connected&&c.acctId===aid)
+  const connectedGoals=(S.goals||[]).filter(g=>g.connected&&g.acctId===aid)
+  const connectedFunds=(S.dateBudget.funds||[]).filter(f=>f.connected&&f.acctId===aid)
+  const totalLinked=connectedBudgets.length+connectedSavings.length+connectedGoals.length+connectedFunds.length
   let msg='Delete this account and all its transactions?'
-  if(connectedBudgets.length||connectedSavings.length){
-    msg=`This account is connected to ${connectedBudgets.length} budget(s) and ${connectedSavings.length} savings goal(s). Deleting it will unlink them (their money stays where it is, but they'll no longer be tracked against this account). Continue?`
+  if(totalLinked){
+    msg=`This account is connected to ${connectedBudgets.length} budget(s), ${connectedSavings.length} savings goal(s), ${connectedGoals.length} shared goal(s) and ${connectedFunds.length} date-budget fund(s). Deleting it will unlink them (their money stays where it is, but they'll no longer be tracked against this account). Continue?`
   }
   if(!confirm(msg))return
   if(SB_READY&&AU_SB_ID)await _sb.from('financial_accounts').delete().eq('id',aid)
   S.accounts=S.accounts.filter(a=>a.id!==aid)
   toast('Account deleted 🗑️')
-  if(connectedBudgets.length||connectedSavings.length)await loadAllDataFromSB(); else renderAccounts()
+  if(totalLinked)await Promise.all([loadAllDataFromSB(),loadDateBudgetFromSB()]); else renderAccounts()
 }
 
 function openAddAcctTxn(aid,type){
@@ -4986,6 +5173,13 @@ function openAddAcctTxn(aid,type){
   document.getElementById('acct-txn-cat').value=''
   document.getElementById('acct-txn-date').value=new Date().toISOString().split('T')[0]
   const errEl=document.getElementById('acct-txn-err');if(errEl)errEl.style.display='none'
+  const linkSel=document.getElementById('acct-txn-link')
+  if(linkSel){
+    const budgetOpts=(S.budgets.u1||[]).map(b=>`<option value="budget:${b.id}">📋 Budget · ${esc(b.title)}</option>`).join('')
+    const savOpts=(S.savingsCats.u1||[]).map(c=>`<option value="savings:${c.id}">🎯 My Savings · ${esc(c.name)}</option>`).join('')
+    const goalOpts=(S.goals||[]).map(g=>`<option value="goal:${g.id}">🏦 Shared Goal · ${esc(g.title)}</option>`).join('')
+    linkSel.innerHTML='<option value="">— None —</option>'+budgetOpts+savOpts+goalOpts
+  }
   setAcctTxnType(type||'income')
   document.getElementById('m-addAcctTxn').style.display='flex'
 }
@@ -4997,15 +5191,21 @@ async function saveAcctTxn(e){
   const amt=parseFloat(document.getElementById('acct-txn-amt').value)
   const date=document.getElementById('acct-txn-date').value
   const cat=document.getElementById('acct-txn-cat').value.trim()
+  const linkVal=document.getElementById('acct-txn-link')?.value||''
+  const [linkType,linkId]=linkVal?linkVal.split(':'):[null,null]
   if(!desc||!amt||amt<=0||!date){showErr('acct-txn-err','Fill all required fields');return}
   const acct=S.accounts.find(a=>a.id===aid);if(!acct){showErr('acct-txn-err','Account not found');return}
-  const txn={id:uid(),aid,desc,amt,type:_acctTxnType,date,cat}
+  const txn={id:uid(),aid,desc,amt,type:_acctTxnType,date,cat,bid:linkType==='budget'?linkId:null,sgid:linkType==='savings'?linkId:null}
   if(SB_READY&&AU_SB_ID){
-    const {data,error}=await _sb.from('account_transactions').insert({
+    const dbRow={
       account_id:aid,user_id:AU_SB_ID,description:desc,amount:amt,
-      type:_acctTxnType,transaction_date:date,category:cat||null
-    }).select().single()
-    if(error){showErr('acct-txn-err','Failed to save');return}
+      type:_acctTxnType,transaction_date:date,category:cat||null,
+      budget_id:linkType==='budget'?linkId:null,
+      savings_id:linkType==='savings'?linkId:null,
+      shared_goal_id:linkType==='goal'?linkId:null
+    }
+    const {data,error}=await _sb.from('account_transactions').insert(dbRow).select().single()
+    if(error){showErr('acct-txn-err',friendlyDbErr(error,'Failed to save'));return}
     if(data)txn.id=data.id
   }
   if(!acct.transactions)acct.transactions=[]
@@ -5049,12 +5249,18 @@ function renderAccounts(){
           const sorted=[...txns].sort((x,y)=>y.date.localeCompare(x.date))
           const connectedBudgets=(S.budgets.u1||[]).filter(b=>b.connected&&b.acctId===a.id)
           const connectedSavings=(S.savingsCats.u1||[]).filter(c=>c.connected&&c.acctId===a.id)
+          const connectedGoals=(S.goals||[]).filter(g=>g.connected&&g.acctId===a.id)
+          const connectedFunds=(S.dateBudget.funds||[]).filter(f=>f.connected&&f.acctId===a.id)
           const addedStr=a.createdAt?new Date(a.createdAt).toLocaleDateString('en-PH',{month:'long',day:'numeric',year:'numeric'}):''
           const txnIcon=t=>{
             if(t.src==='budget_allocation')return '📤'
             if(t.src==='budget_return')return '📥'
             if(t.src==='savings_allocation')return '🐷'
             if(t.src==='savings_return')return '💸'
+            if(t.src==='goal_allocation')return '🏦'
+            if(t.src==='goal_return')return '💸'
+            if(t.src==='date_fund_allocation')return '💕'
+            if(t.src==='date_fund_return')return '💸'
             return t.type==='income'?'💚':'❤️'
           }
           return `<div class="card" style="margin-bottom:12px;padding:14px 16px">
@@ -5070,9 +5276,11 @@ function renderAccounts(){
                 <button class="btn btn-xs btn-d" onclick="deleteAccount('${a.id}')">🗑️</button>
               </div>
             </div>
-            ${(connectedBudgets.length||connectedSavings.length)?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+            ${(connectedBudgets.length||connectedSavings.length||connectedGoals.length||connectedFunds.length)?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
               ${connectedBudgets.map(b=>`<span class="badge ba" title="Budget · ${P(b.allocated)} allocated">🔗 ${esc(b.title)}</span>`).join('')}
-              ${connectedSavings.map(c=>`<span class="badge ba" title="Savings goal">🔗 ${esc(c.name)}</span>`).join('')}
+              ${connectedSavings.map(c=>`<span class="badge ba" title="My Savings goal">🔗 ${esc(c.name)}</span>`).join('')}
+              ${connectedGoals.map(g=>`<span class="badge ba" title="Shared goal">🔗 ${esc(g.title)}</span>`).join('')}
+              ${connectedFunds.length?`<span class="badge ba" title="Monthly Date Budget fund entries">🔗 Monthly Date Budget (${connectedFunds.length})</span>`:''}
             </div>`:''}
             ${sorted.length===0
               ?'<div class="empty" style="padding:12px"><p>No transactions yet</p></div>'
@@ -5413,7 +5621,7 @@ async function loadAllDataFromSB(){
     S.expenses.u2=(pe||[]).map(e=>({id:e.id,uid:'u2',bid:e.budget_id,desc:e.description,amt:parseFloat(e.amount)||0,date:e.expense_date,catId:e.category_id||'cat8',pm:e.payment_method||'cash',custCat:e.custom_category||''}))
     S.insts.u1=(insts||[]).map(i=>({id:i.id,uid:'u1',bid:i.budget_id||null,name:i.item_name,total:parseFloat(i.total_cost)||0,down:parseFloat(i.down_payment)||0,payAmt:parseFloat(i.payment_amount)||0,freq:i.frequency||'monthly',numPay:i.total_payments||1,paid:i.payments_made||0,nextDue:i.next_due_date,auto:i.auto_add_expense,status:i.status||'active',pm:i.payment_method||'cash'}))
     S.insts.u2=(pi||[]).map(i=>({id:i.id,uid:'u2',bid:i.budget_id||null,name:i.item_name,total:parseFloat(i.total_cost)||0,down:parseFloat(i.down_payment)||0,payAmt:parseFloat(i.payment_amount)||0,freq:i.frequency||'monthly',numPay:i.total_payments||1,paid:i.payments_made||0,nextDue:i.next_due_date,auto:i.auto_add_expense,status:i.status||'active',pm:i.payment_method||'cash'}))
-    S.goals=(goals||[]).map(g=>({id:g.id,title:g.title,icon:g.icon||'🎯',target:parseFloat(g.target_amount)||0,color:g.color||'#d4537e',contributions:(g.savings_contributions||[]).map(c=>({id:c.id,uid:c.user_id===AU_SB_ID?'u1':'u2',amt:parseFloat(c.amount)||0,source:c.source||'manual',note:c.note||'',date:c.contribution_date}))}))
+    S.goals=(goals||[]).map(g=>({id:g.id,title:g.title,icon:g.icon||'🎯',target:parseFloat(g.target_amount)||0,color:g.color||'#d4537e',connected:!!g.connected_to_accounts,acctId:g.account_id||null,contributions:(g.savings_contributions||[]).map(c=>({id:c.id,uid:c.user_id===AU_SB_ID?'u1':'u2',amt:parseFloat(c.amount)||0,source:c.source||'manual',note:c.note||'',date:c.contribution_date}))}))
     S.todos=[...(todos||[]).map(t=>({id:t.id,uid:'u1',title:t.title,cat:t.category||'personal',custCat:t.custom_cat||'',pri:t.priority||'mid',due:t.due_date||'',notes:t.notes||'',done:t.is_done||false})),...(pt||[]).map(t=>({id:t.id,uid:'u2',title:t.title,cat:t.category||'personal',custCat:t.custom_cat||'',pri:t.priority||'mid',due:t.due_date||'',notes:t.notes||'',done:t.is_done||false}))]
     S.wishlist.u1=(wl||[]).map(w=>({id:w.id,uid:'u1',name:w.item_name,price:parseFloat(w.target_price)||0,notes:w.notes||'',status:w.status||'planned',url:w.url||''}))
     S.wishlist.u2=(pw||[]).map(w=>({id:w.id,uid:'u2',name:w.item_name,price:parseFloat(w.target_price)||0,notes:w.notes||'',status:w.status||'planned',url:w.url||''}))
@@ -5433,7 +5641,7 @@ async function loadAllDataFromSB(){
       transactions:(a.account_transactions||[]).map(t=>({
         id:t.id,aid:a.id,desc:t.description,amt:parseFloat(t.amount)||0,
         type:t.type,date:t.transaction_date,cat:t.category||'',
-        src:t.txn_source||'manual',bid:t.budget_id||null,sgid:t.savings_id||null
+        src:t.txn_source||'manual',bid:t.budget_id||null,sgid:t.savings_id||null,ggid:t.shared_goal_id||null
       }))
     }))
     // Wallet sub-categories (section='wallet')
