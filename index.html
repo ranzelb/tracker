@@ -1006,6 +1006,10 @@ tbody tr:hover td{background:var(--bg3)}
       </div>
     </div>
     <div class="fg"><label>Amount (₱)</label><input id="saventry-amt" type="number" min="0.01" step="0.01" placeholder="0.00"/></div>
+    <div class="fg"><label id="saventry-acct-label">Source Account (optional)</label>
+      <select id="saventry-acct"><option value="">— None (don't link to an account) —</option></select>
+      <div style="font-size:10px;color:var(--txt3);margin-top:5px" id="saventry-acct-hint">Deducts this amount from the chosen account automatically.</div>
+    </div>
     <div class="fg"><label>Note (optional)</label><input id="saventry-note" placeholder="e.g. Monthly savings…" maxlength="80"/></div>
     <div class="fg"><label>Date</label><input id="saventry-date" type="date"/></div>
     <div class="err" id="saventry-err"></div>
@@ -1689,8 +1693,12 @@ tbody tr:hover td{background:var(--bg3)}
     <input type="hidden" id="sav-eid"/><input type="hidden" id="sav-gid"/>
     <div class="fg"><label>Savings Goal</label><select id="sav-goal" onchange="renderSavGoalConnectNote()"></select></div>
     <div class="fg"><label>Amount (₱)</label><input id="sav-amt" type="number" min="0.01" step="0.01" placeholder="500"/></div>
+    <div class="fg"><label>Source Account (optional)</label>
+      <select id="sav-acct"><option value="">— None (don't link to an account) —</option></select>
+      <div style="font-size:10px;color:var(--txt3);margin-top:5px">Deducts this deposit from the chosen account automatically.</div>
+    </div>
     <div class="fg"><label>Note (optional)</label><input id="sav-note" placeholder="e.g. Birthday savings"/></div>
-    <div id="sav-connect-note" style="display:none;font-size:11px;color:var(--teal);background:var(--teal-bg);border-radius:9px;padding:8px 11px;margin-bottom:10px">🟢 This goal is connected — the amount will be deducted from its linked account.</div>
+    <div id="sav-connect-note" style="display:none;font-size:11px;color:var(--teal);background:var(--teal-bg);border-radius:9px;padding:8px 11px;margin-bottom:10px">🟢 This goal has a default account — pre-selected above, but you can change it for this deposit.</div>
     <div class="err" id="sav-err"></div>
     <div class="mfoot"><button class="btn" onclick="cm('m-addSav')">Cancel</button><button class="btn btn-p" onclick="saveSav(event)">Deposit</button></div>
   </div>
@@ -2418,7 +2426,7 @@ function renderShared(){
   document.getElementById('sh-cnt').textContent=allContribs.length+' entries'
   document.getElementById('sh-txns').innerHTML=allContribs.slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).map(c=>{
     const isAuto=c.source==='auto'||c.source==='auto_transfer'; const u=USERS[c.uid]||{};const g=S.goals.find(g=>g.contributions.find(x=>x.id===c.id))
-    return`<div class="row"><div class="rico" style="background:${isAuto?'var(--teal-bg)':'var(--coin-bg)'}">${isAuto?'🔄':'💸'}</div><div class="rinfo"><div class="rname">${isAuto?'Auto-transfer':'Manual deposit'} — ${esc(u.name||'')} → ${g?esc(g.title):''}</div><div class="rsub">${fmtD(c.date)}${c.note?' · '+esc(c.note):''} <span class="badge ${isAuto?'bi':'bg'}" style="font-size:9px">${isAuto?'auto':'manual'}</span></div></div><div class="rright"><div class="ramt" style="color:var(--teal)">+${P(c.amt)}</div><div class="racts"><button class="btn-ico btn btn-xs" onclick="openEditSav(event,'${c.id}')">✏️</button><button class="btn-ico btn btn-xs btn-d" onclick="delConfirm('🗑️ Remove','Remove +${P(c.amt)} contribution?',()=>delSav('${c.id}'))">🗑️</button></div></div></div>`
+    return`<div class="row"><div class="rico" style="background:${isAuto?'var(--teal-bg)':'var(--coin-bg)'}">${isAuto?'🔄':'💸'}</div><div class="rinfo"><div class="rname">${isAuto?'Auto-transfer':'Manual deposit'} — ${esc(u.name||'')} → ${g?esc(g.title):''}</div><div class="rsub">${fmtD(c.date)}${c.note?' · '+esc(c.note):''} <span class="badge ${isAuto?'bi':'bg'}" style="font-size:9px">${isAuto?'auto':'manual'}</span>${c.acctId?` <span class="badge ba" style="font-size:9px">🔗 ${esc((S.accounts||[]).find(a=>a.id===c.acctId)?.name||'account')}</span>`:''}</div></div><div class="rright"><div class="ramt" style="color:var(--teal)">+${P(c.amt)}</div><div class="racts"><button class="btn-ico btn btn-xs" onclick="openEditSav(event,'${c.id}')">✏️</button><button class="btn-ico btn btn-xs btn-d" onclick="delConfirm('🗑️ Remove','Remove +${P(c.amt)} contribution?',()=>delSav('${c.id}'))">🗑️</button></div></div></div>`
   }).join('')
 
   // Past budget transfers as summaries
@@ -3132,7 +3140,11 @@ function renderSavGoalConnectNote(){
   const note=document.getElementById('sav-connect-note');if(!note)return
   const gid=document.getElementById('sav-goal')?.value
   const goal=(S.goals||[]).find(g=>g.id===gid)
-  note.style.display=(goal&&goal.connected)?'block':'none'
+  const hasDefault=!!(goal&&goal.connected&&goal.acctId)
+  note.style.display=hasDefault?'block':'none'
+  // Only auto-fill the account picker if it's currently empty — never override a manual pick
+  const acctSel=document.getElementById('sav-acct')
+  if(hasDefault&&acctSel&&!acctSel.value)acctSel.value=goal.acctId
 }
 
 // Friendly translation of the Postgres "insufficient_funds:" exception
@@ -3429,6 +3441,9 @@ function openAddSavToGoal(e,gid){
   const sel=document.getElementById('sav-goal')
   sel.innerHTML=S.goals.map(g=>`<option value="${g.id}" ${g.id===gid?'selected':''}>${g.icon} ${esc(g.title)}</option>`).join('')
   document.getElementById('sav-mtitle').textContent='🏦 Add to Savings';document.getElementById('sav-err').style.display='none'
+  populateAcctSelect('sav-acct')
+  const goal=S.goals.find(g=>g.id===gid)
+  document.getElementById('sav-acct').value=(goal&&goal.connected&&goal.acctId)?goal.acctId:''
   renderSavGoalConnectNote()
   document.getElementById('m-addSav').style.display='flex'
 }
@@ -3440,41 +3455,45 @@ function openEditSav(e,cid){
   const sel=document.getElementById('sav-goal');sel.innerHTML=S.goals.map(g=>`<option value="${g.id}" ${g.id===foundG.id?'selected':''}>${g.icon} ${esc(g.title)}</option>`).join('')
   document.getElementById('sav-amt').value=found.amt;document.getElementById('sav-note').value=found.note||''
   document.getElementById('sav-mtitle').textContent='✏️ Edit Contribution';document.getElementById('sav-err').style.display='none'
+  populateAcctSelect('sav-acct')
+  document.getElementById('sav-acct').value=found.acctId||''
   renderSavGoalConnectNote()
   document.getElementById('m-addSav').style.display='flex'
 }
 async function saveSav(e){
   CP(e);const eid=document.getElementById('sav-eid').value,gid=document.getElementById('sav-goal').value,amt=parseFloat(document.getElementById('sav-amt').value),note=document.getElementById('sav-note').value.trim()
+  const acctId=document.getElementById('sav-acct')?.value||null
   if(!amt||amt<=0){showErr('sav-err','Enter a valid amount');return}
   const goal=S.goals.find(g=>g.id===gid);if(!goal){showErr('sav-err','Goal not found');return}
   if(eid){
     if(SB_READY&&AU_SB_ID){
-      const {error}=await _sb.from('savings_contributions').update({amount:amt,note}).eq('id',eid)
+      const {error}=await _sb.from('savings_contributions').update({amount:amt,note,account_id:acctId||null}).eq('id',eid)
       if(error){showErr('sav-err',friendlyDbErr(error,'Failed to save'));return}
     }
-    S.goals.forEach(g=>{const idx=g.contributions.findIndex(c=>c.id===eid);if(idx>-1)g.contributions[idx]={...g.contributions[idx],amt,note}});toast('Contribution updated ✏️')
+    S.goals.forEach(g=>{const idx=g.contributions.findIndex(c=>c.id===eid);if(idx>-1)g.contributions[idx]={...g.contributions[idx],amt,note,acctId}});toast('Contribution updated ✏️')
   } else {
     let newId=uid()
     if(SB_READY&&AU_SB_ID){
-      const {data,error}=await _sb.from('savings_contributions').insert({goal_id:gid,user_id:AU_SB_ID,amount:amt,source:'manual',note,contribution_date:tod()}).select().single()
+      const {data,error}=await _sb.from('savings_contributions').insert({goal_id:gid,user_id:AU_SB_ID,amount:amt,source:'manual',note,contribution_date:tod(),account_id:acctId||null}).select().single()
       if(error){showErr('sav-err',friendlyDbErr(error,'Failed to save'));return}
       if(data)newId=data.id
     }
-    goal.contributions.unshift({id:newId,uid:AU,amt,source:'manual',note,date:tod()});toast(`${P(amt)} deposited to ${goal.title}! 🏦`)
+    goal.contributions.unshift({id:newId,uid:AU,amt,source:'manual',note,date:tod(),acctId});toast(`${P(amt)} deposited to ${goal.title}! 🏦`)
   }
   cm('m-addSav')
-  if(goal.connected)await loadAllDataFromSB(); else renderShared()
+  if(acctId)await loadAllDataFromSB(); else renderShared()
 }
 async function delSav(cid){
-  let goal=null
-  S.goals.forEach(g=>{if(g.contributions.find(c=>c.id===cid))goal=g})
+  let goal=null,entry=null
+  S.goals.forEach(g=>{const c=g.contributions.find(x=>x.id===cid);if(c){goal=g;entry=c}})
+  const hadAcct=entry&&entry.acctId
   if(SB_READY&&AU_SB_ID){
     const {error}=await _sb.from('savings_contributions').delete().eq('id',cid)
     if(error){toast(friendlyDbErr(error,'Failed to delete'),'⚠️');return}
   }
   S.goals.forEach(g=>{g.contributions=g.contributions.filter(c=>c.id!==cid)})
-  toast('Contribution removed 🗑️')
-  if(goal&&goal.connected)await loadAllDataFromSB(); else renderShared()
+  toast('Contribution removed 🗑️'+(hadAcct?' — funds returned to My Accounts 💰':''))
+  if(hadAcct)await loadAllDataFromSB(); else renderShared()
 }
 // Goal CRUD
 function openEditGoal(e,gid){
@@ -4893,6 +4912,9 @@ function setSavEntryType(t){
   _savEntryType=t
   document.getElementById('saventry-add').className=t==='add'?'btn btn-p':'btn btn-g'
   document.getElementById('saventry-withdraw').className=t==='withdraw'?'btn btn-p':'btn btn-g'
+  const lbl=document.getElementById('saventry-acct-label'),hint=document.getElementById('saventry-acct-hint')
+  if(lbl)lbl.textContent=t==='add'?'Source Account (optional)':'Transfer To (optional)'
+  if(hint)hint.textContent=t==='add'?'Deducts this amount from the chosen account automatically.':'Returns this amount to the chosen account automatically.'
 }
 function openAddSavCat(scope){
   document.getElementById('savcat-scope').value=scope
@@ -4957,6 +4979,10 @@ function openAddSavEntry(scope,catId){
   document.getElementById('saventry-note').value=''
   document.getElementById('saventry-date').value=new Date().toISOString().split('T')[0]
   const errEl=document.getElementById('saventry-err');if(errEl)errEl.style.display='none'
+  populateAcctSelect('saventry-acct')
+  const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
+  const cat=(S.savingsCats[uid2]||[]).find(c=>c.id===catId)
+  document.getElementById('saventry-acct').value=(cat&&cat.connected&&cat.acctId)?cat.acctId:''
   setSavEntryType('add')
   document.getElementById('m-addSavEntry').style.display='flex'
 }
@@ -4968,15 +4994,16 @@ async function saveSavEntry(e){
   const amt=parseFloat(document.getElementById('saventry-amt').value)
   const note=document.getElementById('saventry-note').value.trim()
   const date=document.getElementById('saventry-date').value
+  const acctId=document.getElementById('saventry-acct')?.value||null
   const sbUserId=uid2==='u1'?AU_SB_ID:AU_PARTNER_ID
   if(!amt||amt<=0||!date){showErr('saventry-err','Enter a valid amount and date');return}
   const cat=(S.savingsCats[uid2]||[]).find(c=>c.id===catId)
   if(!cat){showErr('saventry-err','Category not found');return}
-  const entry={id:uid(),catId,type:_savEntryType,amt,note,date}
+  const entry={id:uid(),catId,type:_savEntryType,amt,note,date,acctId}
   if(SB_READY&&sbUserId){
     const {data,error}=await _sb.from('personal_savings_contributions').insert({
       goal_id:catId,user_id:sbUserId,amount:_savEntryType==='add'?amt:-amt,
-      note:note||null,contribution_date:date
+      note:note||null,contribution_date:date,account_id:acctId||null
     }).select().single()
     if(error){showErr('saventry-err',friendlyDbErr(error,'Failed to save'));return}
     if(data)entry.id=data.id
@@ -4984,19 +5011,21 @@ async function saveSavEntry(e){
   if(!cat.entries)cat.entries=[]
   cat.entries.unshift(entry)
   cm('m-addSavEntry');toast(_savEntryType==='add'?'Savings added! 💚':'Withdrawal recorded ❤️')
-  if(cat.connected)await loadAllDataFromSB(); else renderISavings(scope)
+  if(acctId)await loadAllDataFromSB(); else renderISavings(scope)
 }
 async function deleteSavEntry2(scope,catId,entryId){
   const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
   if(!confirm('Delete this savings entry?'))return
   const cat=(S.savingsCats[uid2]||[]).find(c=>c.id===catId)
+  const entry=cat&&(cat.entries||[]).find(en=>en.id===entryId)
+  const hadAcct=entry&&entry.acctId
   if(SB_READY&&AU_SB_ID){
     const {error}=await _sb.from('personal_savings_contributions').delete().eq('id',entryId)
     if(error){toast(friendlyDbErr(error,'Failed to delete entry'),'⚠️');return}
   }
   if(cat)cat.entries=(cat.entries||[]).filter(en=>en.id!==entryId)
-  toast('Entry deleted 🗑️')
-  if(cat?.connected)await loadAllDataFromSB(); else renderISavings(scope)
+  toast('Entry deleted 🗑️'+(hadAcct?' — funds returned to My Accounts 💰':''))
+  if(hadAcct)await loadAllDataFromSB(); else renderISavings(scope)
 }
 function renderISavings(scope){
   const uid2=scope==='mine'?AU:(AU==='u1'?'u2':'u1')
@@ -5048,13 +5077,14 @@ function renderISavings(scope){
             </div>
             ${sorted.length===0
               ?'<div style="font-size:12px;color:var(--txt3);text-align:center;padding:6px">No entries yet</div>'
-              :`<div class="txn-list">${sorted.slice(0,5).map(en=>`
-                <div class="txn-item">
+              :`<div class="txn-list">${sorted.slice(0,5).map(en=>{
+                const acct=en.acctId?(S.accounts||[]).find(a=>a.id===en.acctId):null
+                return `<div class="txn-item">
                   <div class="txn-icon ${en.type==='add'?'inc':'exp'}">${en.type==='add'?'💚':'❤️'}</div>
-                  <div class="txn-info"><div class="txn-desc">${esc(en.note||'Savings entry')}</div><div class="txn-meta">${fmtD(en.date)}</div></div>
+                  <div class="txn-info"><div class="txn-desc">${esc(en.note||'Savings entry')}${acct?` <span class="badge bi" style="font-size:9px">🔗 ${esc(acct.name)}</span>`:''}</div><div class="txn-meta">${fmtD(en.date)}</div></div>
                   <div class="txn-amt ${en.type==='add'?'inc':'exp'}">${en.type==='add'?'+':'-'}${P(en.amt)}</div>
                   ${isOwn?`<button class="txn-del" onclick="deleteSavEntry2('${scope}','${cat.id}','${en.id}')" title="Delete">🗑️</button>`:''}
-                </div>`).join('')}
+                </div>`}).join('')}
               ${sorted.length>5?`<div style="text-align:center;padding:4px;font-size:11px;color:var(--txt3)">+${sorted.length-5} more</div>`:''}</div>`
             }
           </div>`
@@ -5621,7 +5651,7 @@ async function loadAllDataFromSB(){
     S.expenses.u2=(pe||[]).map(e=>({id:e.id,uid:'u2',bid:e.budget_id,desc:e.description,amt:parseFloat(e.amount)||0,date:e.expense_date,catId:e.category_id||'cat8',pm:e.payment_method||'cash',custCat:e.custom_category||''}))
     S.insts.u1=(insts||[]).map(i=>({id:i.id,uid:'u1',bid:i.budget_id||null,name:i.item_name,total:parseFloat(i.total_cost)||0,down:parseFloat(i.down_payment)||0,payAmt:parseFloat(i.payment_amount)||0,freq:i.frequency||'monthly',numPay:i.total_payments||1,paid:i.payments_made||0,nextDue:i.next_due_date,auto:i.auto_add_expense,status:i.status||'active',pm:i.payment_method||'cash'}))
     S.insts.u2=(pi||[]).map(i=>({id:i.id,uid:'u2',bid:i.budget_id||null,name:i.item_name,total:parseFloat(i.total_cost)||0,down:parseFloat(i.down_payment)||0,payAmt:parseFloat(i.payment_amount)||0,freq:i.frequency||'monthly',numPay:i.total_payments||1,paid:i.payments_made||0,nextDue:i.next_due_date,auto:i.auto_add_expense,status:i.status||'active',pm:i.payment_method||'cash'}))
-    S.goals=(goals||[]).map(g=>({id:g.id,title:g.title,icon:g.icon||'🎯',target:parseFloat(g.target_amount)||0,color:g.color||'#d4537e',connected:!!g.connected_to_accounts,acctId:g.account_id||null,contributions:(g.savings_contributions||[]).map(c=>({id:c.id,uid:c.user_id===AU_SB_ID?'u1':'u2',amt:parseFloat(c.amount)||0,source:c.source||'manual',note:c.note||'',date:c.contribution_date}))}))
+    S.goals=(goals||[]).map(g=>({id:g.id,title:g.title,icon:g.icon||'🎯',target:parseFloat(g.target_amount)||0,color:g.color||'#d4537e',connected:!!g.connected_to_accounts,acctId:g.account_id||null,contributions:(g.savings_contributions||[]).map(c=>({id:c.id,uid:c.user_id===AU_SB_ID?'u1':'u2',amt:parseFloat(c.amount)||0,source:c.source||'manual',note:c.note||'',date:c.contribution_date,acctId:c.account_id||null}))}))
     S.todos=[...(todos||[]).map(t=>({id:t.id,uid:'u1',title:t.title,cat:t.category||'personal',custCat:t.custom_cat||'',pri:t.priority||'mid',due:t.due_date||'',notes:t.notes||'',done:t.is_done||false})),...(pt||[]).map(t=>({id:t.id,uid:'u2',title:t.title,cat:t.category||'personal',custCat:t.custom_cat||'',pri:t.priority||'mid',due:t.due_date||'',notes:t.notes||'',done:t.is_done||false}))]
     S.wishlist.u1=(wl||[]).map(w=>({id:w.id,uid:'u1',name:w.item_name,price:parseFloat(w.target_price)||0,notes:w.notes||'',status:w.status||'planned',url:w.url||''}))
     S.wishlist.u2=(pw||[]).map(w=>({id:w.id,uid:'u2',name:w.item_name,price:parseFloat(w.target_price)||0,notes:w.notes||'',status:w.status||'planned',url:w.url||''}))
@@ -5657,7 +5687,7 @@ async function loadAllDataFromSB(){
     function mapSavCat(g,uid2){
       const entries=(g.personal_savings_contributions||[]).map(c=>({
         id:c.id,catId:g.id,type:parseFloat(c.amount)>=0?'add':'withdraw',
-        amt:Math.abs(parseFloat(c.amount)||0),note:c.note||'',date:c.contribution_date
+        amt:Math.abs(parseFloat(c.amount)||0),note:c.note||'',date:c.contribution_date,acctId:c.account_id||null
       }))
       return {id:g.id,uid:uid2,name:g.title,icon:g.icon||'🎯',color:g.color||'#d4537e',entries,connected:!!g.connected_to_accounts,acctId:g.account_id||null}
     }
